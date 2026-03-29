@@ -484,6 +484,237 @@ app.get('/api/admin/stock/low', requireAdmin, async (req, res) => {
 });
 
 // ============================================================
+// MEMBER ROUTES
+// ============================================================
+
+/**
+ * GET /api/members/search — search members by name or email (public, used at kiosk)
+ */
+app.get('/api/members/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) return res.json({ members: [] });
+    const { rows } = await pool.query(
+      `SELECT * FROM members WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY name LIMIT 10`,
+      [`%${q.trim()}%`]
+    );
+    res.json({ members: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/members — create a new member (public, new member at kiosk)
+ */
+app.post('/api/members', async (req, res) => {
+  try {
+    const { name, email, phone, notes } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+    const { rows } = await pool.query(
+      'INSERT INTO members (name, email, phone, notes) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name.trim(), email || null, phone || null, notes || null]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/members/:id — get member by ID
+ */
+app.get('/api/members/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM members WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Member not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/members — list all members (admin)
+ */
+app.get('/api/admin/members', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM members ORDER BY name');
+    res.json({ members: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/admin/members/:id — update member (admin)
+ */
+app.put('/api/admin/members/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, email, phone, notes } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE members SET name = COALESCE($1, name), email = COALESCE($2, email), phone = COALESCE($3, phone), notes = COALESCE($4, notes), updated_at = NOW() WHERE id = $5 RETURNING *',
+      [name, email, phone, notes, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Member not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/members/:id — delete member (admin)
+ */
+app.delete('/api/admin/members/:id', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM members WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// SUBSCRIPTION ROUTES
+// ============================================================
+
+/**
+ * POST /api/subscriptions/setup — set up recurring subscription after terminal payment
+ */
+app.post('/api/subscriptions/setup', async (req, res) => {
+  try {
+    const { payment_intent_id, member_id, membership_id } = req.body;
+    if (!payment_intent_id || !member_id || !membership_id) {
+      return res.status(400).json({ error: 'payment_intent_id, member_id, and membership_id are required' });
+    }
+
+    // Get the membership
+    const { rows: membershipRows } = await pool.query('SELECT * FROM memberships WHERE id = $1', [membership_id]);
+    if (!membershipRows.length) return res.status(404).json({ error: 'Membership not found' });
+    const membership = membershipRows[0];
+
+    // Get the member
+    const { rows: memberRows } = await pool.query('SELECT * FROM members WHERE id = $1', [member_id]);
+    if (!memberRows.length) return res.status(404).json({ error: 'Member not found' });
+    const member = memberRows[0];
+
+    // Retrieve the PaymentIntent to get the payment method
+    const pi = await stripe.paymentIntents.retrieve(payment_intent_id);
+    if (pi.status !== 'succeeded') {
+      return res.status(400).json({ error: 'PaymentIntent has not succeeded' });
+    }
+
+    // Get the payment method from the charge
+    const charges = await stripe.charges.list({ payment_intent: payment_intent_id, limit: 1 });
+    if (!charges.data.length) return res.status(400).json({ error: 'No charge found for this payment' });
+    const paymentMethodId = charges.data[0].payment_method;
+
+    // Create or get Stripe customer
+    let customerId;
+    const { rows: existingSubs } = await pool.query(
+      'SELECT stripe_customer_id FROM subscriptions WHERE member_id = $1 AND stripe_customer_id IS NOT NULL LIMIT 1',
+      [member_id]
+    );
+    if (existingSubs.length) {
+      customerId = existingSubs[0].stripe_customer_id;
+    } else {
+      const customer = await stripe.customers.create({
+        name: member.name,
+        email: member.email || undefined,
+        phone: member.phone || undefined,
+        metadata: { hybrid_hut_member_id: String(member_id) },
+      });
+      customerId = customer.id;
+    }
+
+    // Attach payment method to customer
+    await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+    await stripe.customers.update(customerId, {
+      invoice_settings: { default_payment_method: paymentMethodId },
+    });
+
+    // Create or get Stripe Price for this membership
+    let priceId = membership.stripe_price_id;
+    if (!priceId) {
+      const price = await stripe.prices.create({
+        currency: 'gbp',
+        unit_amount: membership.price_pence,
+        recurring: { interval: 'month' },
+        product_data: { name: membership.name },
+      });
+      priceId = price.id;
+      await pool.query('UPDATE memberships SET stripe_price_id = $1 WHERE id = $2', [priceId, membership_id]);
+    }
+
+    // Create Stripe Subscription (trial_end = end of current period so they aren't charged again now)
+    const periodEnd = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days from now
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: priceId }],
+      trial_end: periodEnd,
+      default_payment_method: paymentMethodId,
+      metadata: { hybrid_hut_member_id: String(member_id), membership_id: String(membership_id) },
+    });
+
+    // Store in DB
+    const { rows: subRows } = await pool.query(
+      `INSERT INTO subscriptions (member_id, stripe_customer_id, stripe_subscription_id, membership_id, status, current_period_end)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [member_id, customerId, subscription.id, membership_id, subscription.status, new Date(subscription.current_period_end * 1000)]
+    );
+
+    console.log(`✓ Subscription created: ${subscription.id} for member ${member.name}`);
+    res.json({ subscription: subRows[0], stripe_subscription_id: subscription.id });
+  } catch (err) {
+    console.error('Subscription setup error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/subscriptions — list all subscriptions with member and membership info (admin)
+ */
+app.get('/api/admin/subscriptions', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT s.*, m.name as member_name, m.email as member_email,
+             ms.name as membership_name, ms.price_pence
+      FROM subscriptions s
+      LEFT JOIN members m ON s.member_id = m.id
+      LEFT JOIN memberships ms ON s.membership_id = ms.id
+      ORDER BY s.created_at DESC
+    `);
+    res.json({ subscriptions: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/subscriptions/:id/cancel — cancel a subscription (admin)
+ */
+app.post('/api/admin/subscriptions/:id/cancel', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM subscriptions WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Subscription not found' });
+    const sub = rows[0];
+
+    if (sub.stripe_subscription_id) {
+      await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+    }
+
+    const { rows: updated } = await pool.query(
+      'UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      ['cancelled', req.params.id]
+    );
+    res.json(updated[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
 // HELPERS
 // ============================================================
 

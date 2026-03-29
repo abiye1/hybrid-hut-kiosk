@@ -1305,6 +1305,180 @@
       margin-left: 4px;
     }
 
+    /* ── Member Search ── */
+    .member-search-section {
+      margin-bottom: 24px;
+      animation: fadeUp 0.5s ease-out 0.35s both;
+    }
+
+    .member-search-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .member-search-input {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      background: var(--off-black);
+      border: 1px solid var(--charcoal);
+      border-radius: 8px;
+      color: var(--white);
+      padding: 10px 14px;
+      flex: 1;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .member-search-input:focus {
+      border-color: var(--coral);
+    }
+
+    .member-search-input::placeholder {
+      color: var(--mid-grey);
+    }
+
+    .member-search-dropdown {
+      position: relative;
+    }
+
+    .member-search-results {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: var(--off-black);
+      border: 1px solid var(--charcoal);
+      border-radius: 8px;
+      z-index: 50;
+      max-height: 240px;
+      overflow-y: auto;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+      display: none;
+    }
+
+    .member-search-results--open {
+      display: block;
+    }
+
+    .member-result-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(42,42,42,0.6);
+      transition: background 0.12s ease;
+    }
+
+    .member-result-item:last-child {
+      border-bottom: none;
+    }
+
+    .member-result-item:hover {
+      background: rgba(232, 89, 109, 0.08);
+    }
+
+    .member-result-item__name {
+      color: var(--white);
+      font-weight: 700;
+    }
+
+    .member-result-item__email {
+      font-size: 11px;
+      color: var(--mid-grey);
+      margin-top: 2px;
+    }
+
+    .member-selected-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      background: rgba(232, 89, 109, 0.1);
+      border: 1px solid rgba(232, 89, 109, 0.3);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+
+    .member-selected-pill__label {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--mid-grey);
+      margin-right: 4px;
+    }
+
+    .member-selected-pill__name {
+      color: var(--white);
+      flex: 1;
+    }
+
+    .member-selected-pill__clear {
+      background: none;
+      border: none;
+      color: var(--mid-grey);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 2px;
+      transition: color 0.15s ease;
+    }
+
+    .member-selected-pill__clear:hover {
+      color: var(--coral);
+    }
+
+    .member-new-form {
+      background: var(--off-black);
+      border: 1px solid var(--charcoal);
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 10px;
+    }
+
+    .member-new-form__title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 15px;
+      letter-spacing: 1.5px;
+      color: var(--mid-grey);
+      margin-bottom: 12px;
+    }
+
+    /* ── Subscription status badges ── */
+    .badge--sub-active {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(74, 222, 128, 0.15);
+      color: var(--success);
+    }
+
+    .badge--sub-trialing {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--warning);
+    }
+
+    .badge--sub-cancelled,
+    .badge--sub-past_due {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 600px) {
       .app { padding: 24px 16px 60px; }
@@ -1353,6 +1527,47 @@
       </div>
       <div class="card-grid" id="productsGrid">
         <div class="admin-empty">Loading products...</div>
+      </div>
+    </div>
+
+    <!-- Member Search Section -->
+    <div class="member-search-section" id="memberSearchSection">
+      <div class="member-search-dropdown" id="memberSearchDropdown">
+        <div class="member-search-row">
+          <input type="text" class="member-search-input" id="memberSearchInput" placeholder="Search member by name or email..." autocomplete="off" />
+          <button class="btn btn--ghost btn--sm" id="memberSearchBtn">Search</button>
+          <button class="btn btn--primary btn--sm" id="memberNewBtn">+ New Member</button>
+        </div>
+        <div class="member-search-results" id="memberSearchResults"></div>
+      </div>
+      <div id="memberSelectedPill" style="display:none;">
+        <div class="member-selected-pill">
+          <span class="member-selected-pill__label">Member:</span>
+          <span class="member-selected-pill__name" id="memberSelectedName"></span>
+          <button class="member-selected-pill__clear" id="memberClearBtn" title="Clear member">&#10005;</button>
+        </div>
+      </div>
+      <div class="member-new-form" id="memberNewForm" style="display:none;">
+        <div class="member-new-form__title">New Member</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Name <span style="color:var(--coral);">*</span></label>
+            <input type="text" id="memberNewName" placeholder="Full name" />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="memberNewEmail" placeholder="email@example.com" />
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" id="memberNewPhone" placeholder="+44..." />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn--primary btn--sm" id="memberNewSave">Create &amp; Select</button>
+          <button class="btn btn--ghost btn--sm" id="memberNewCancel">Cancel</button>
+          <span id="memberNewError" style="font-size:11px;color:#F87171;"></span>
+        </div>
       </div>
     </div>
 
@@ -1418,6 +1633,8 @@
         <button class="admin-tab-btn admin-tab-btn--active" data-admin-tab="products">Products</button>
         <button class="admin-tab-btn" data-admin-tab="memberships">Memberships</button>
         <button class="admin-tab-btn" data-admin-tab="transactions">Transactions</button>
+        <button class="admin-tab-btn" data-admin-tab="members">Members</button>
+        <button class="admin-tab-btn" data-admin-tab="subscriptions">Subscriptions</button>
       </div>
 
       <div class="admin-panel__body">
@@ -1510,6 +1727,58 @@
           </div>
         </div>
 
+        <!-- Members Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-members">
+          <div class="admin-section" id="adminMembersSection">
+            <div class="admin-section__header">
+              <div class="admin-section__title">Members</div>
+              <button class="btn btn--primary btn--sm" id="addAdminMemberBtn">+ Add Member</button>
+            </div>
+            <div id="adminMembersTableWrap">
+              <div class="admin-empty">Loading...</div>
+            </div>
+            <div class="inline-form" id="adminMemberForm" style="display:none;">
+              <div class="inline-form__title" id="adminMemberFormTitle">Add Member</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Name <span style="color:var(--coral);">*</span></label>
+                  <input type="text" id="adminMemberFormName" placeholder="Full name" />
+                </div>
+                <div class="form-group">
+                  <label>Email</label>
+                  <input type="email" id="adminMemberFormEmail" placeholder="email@example.com" />
+                </div>
+                <div class="form-group">
+                  <label>Phone</label>
+                  <input type="tel" id="adminMemberFormPhone" placeholder="+44..." />
+                </div>
+                <div class="form-group">
+                  <label>Notes</label>
+                  <input type="text" id="adminMemberFormNotes" placeholder="Optional notes" />
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn--primary btn--sm" id="adminMemberFormSave">Save</button>
+                <button class="btn btn--ghost btn--sm" id="adminMemberFormCancel">Cancel</button>
+                <span id="adminMemberFormError" style="font-size:11px;color:#F87171;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subscriptions Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-subscriptions">
+          <div class="admin-section">
+            <div class="admin-section__header">
+              <div class="admin-section__title">Subscriptions</div>
+              <button class="btn btn--ghost btn--sm" id="subRefreshBtn">Refresh</button>
+            </div>
+            <div id="adminSubscriptionsTableWrap">
+              <div class="admin-empty">Loading...</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Transactions Section -->
         <div class="admin-tab-panel" id="adminTabPanel-transactions">
           <div class="admin-section">
@@ -1561,6 +1830,114 @@
     // Products tab state
     let productsData = [];
     let cart = {};   // { productId: quantity }
+
+    // Member search state
+    let selectedMember = null;
+
+    // ============================================================
+    // MEMBER SEARCH
+    // ============================================================
+    let memberSearchDebounce = null;
+
+    function resetMemberSearchUI() {
+      selectedMember = null;
+      document.getElementById('memberSearchInput').value = '';
+      document.getElementById('memberSearchResults').innerHTML = '';
+      document.getElementById('memberSearchResults').classList.remove('member-search-results--open');
+      document.getElementById('memberSelectedPill').style.display = 'none';
+      document.getElementById('memberSearchDropdown').style.display = '';
+      document.getElementById('memberNewForm').style.display = 'none';
+    }
+
+    function selectMember(member) {
+      selectedMember = member;
+      document.getElementById('memberSelectedName').textContent = member.name + (member.email ? ` (${member.email})` : '');
+      document.getElementById('memberSelectedPill').style.display = '';
+      document.getElementById('memberSearchDropdown').style.display = 'none';
+      document.getElementById('memberNewForm').style.display = 'none';
+      document.getElementById('memberSearchResults').classList.remove('member-search-results--open');
+    }
+
+    async function doMemberSearch(q) {
+      const resultsEl = document.getElementById('memberSearchResults');
+      if (q.trim().length < 2) {
+        resultsEl.innerHTML = '';
+        resultsEl.classList.remove('member-search-results--open');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/members/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        const members = data.members || [];
+        if (!members.length) {
+          resultsEl.innerHTML = '<div class="member-result-item" style="color:var(--muted);">No members found</div>';
+        } else {
+          resultsEl.innerHTML = members.map(m => `
+            <div class="member-result-item" data-id="${m.id}" data-name="${escapeHtml(m.name)}" data-email="${escapeHtml(m.email || '')}">
+              <div class="member-result-item__name">${escapeHtml(m.name)}</div>
+              <div class="member-result-item__email">${escapeHtml(m.email || m.phone || '')}</div>
+            </div>`).join('');
+          resultsEl.querySelectorAll('.member-result-item').forEach(el => {
+            el.addEventListener('click', () => {
+              const member = members.find(m => m.id === parseInt(el.dataset.id));
+              if (member) selectMember(member);
+            });
+          });
+        }
+        resultsEl.classList.add('member-search-results--open');
+      } catch (err) {
+        resultsEl.innerHTML = '<div class="member-result-item" style="color:#F87171;">Search failed</div>';
+        resultsEl.classList.add('member-search-results--open');
+      }
+    }
+
+    document.getElementById('memberSearchInput').addEventListener('input', (e) => {
+      clearTimeout(memberSearchDebounce);
+      memberSearchDebounce = setTimeout(() => doMemberSearch(e.target.value), 300);
+    });
+
+    document.getElementById('memberSearchBtn').addEventListener('click', () => {
+      doMemberSearch(document.getElementById('memberSearchInput').value);
+    });
+
+    document.getElementById('memberSearchInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doMemberSearch(e.target.value);
+    });
+
+    document.getElementById('memberClearBtn').addEventListener('click', resetMemberSearchUI);
+
+    document.getElementById('memberNewBtn').addEventListener('click', () => {
+      document.getElementById('memberNewForm').style.display = 'block';
+      document.getElementById('memberNewName').value = '';
+      document.getElementById('memberNewEmail').value = '';
+      document.getElementById('memberNewPhone').value = '';
+      document.getElementById('memberNewError').textContent = '';
+      document.getElementById('memberNewName').focus();
+    });
+
+    document.getElementById('memberNewCancel').addEventListener('click', () => {
+      document.getElementById('memberNewForm').style.display = 'none';
+    });
+
+    document.getElementById('memberNewSave').addEventListener('click', async () => {
+      const name = document.getElementById('memberNewName').value.trim();
+      const email = document.getElementById('memberNewEmail').value.trim();
+      const phone = document.getElementById('memberNewPhone').value.trim();
+      const errorEl = document.getElementById('memberNewError');
+      if (!name) { errorEl.textContent = 'Name is required.'; return; }
+      errorEl.textContent = '';
+      try {
+        const res = await fetch(`${API_BASE}/members`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, phone })
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || `HTTP ${res.status}`); }
+        const member = await res.json();
+        selectMember(member);
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
 
     // ============================================================
     // ELEMENT REFS
@@ -1933,14 +2310,17 @@
       try {
         showStatus('info', 'Creating Payment', 'Initialising payment with Stripe...');
 
+        const intentPayload = {
+          amount: paymentAmount,
+          currency: 'gbp',
+          description: paymentDescription,
+        };
+        if (selectedMember) intentPayload.member_id = selectedMember.id;
+
         const intentRes = await fetch(`${API_BASE}/create-payment-intent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: paymentAmount,
-            currency: 'gbp',
-            description: paymentDescription,
-          }),
+          body: JSON.stringify(intentPayload),
         });
 
         if (!intentRes.ok) {
@@ -1966,8 +2346,36 @@
         const result = await terminalRes.json();
 
         if (result.status === 'succeeded') {
+          let successExtra = '';
+
+          // If recurring membership + member selected, set up subscription
+          const selectedMembershipObj = membershipsData.find(x => x.id === selectedMembership);
+          if (
+            activeTab === 'memberships' &&
+            selectedMember &&
+            selectedMembershipObj &&
+            selectedMembershipObj.type === 'recurring'
+          ) {
+            try {
+              const subRes = await fetch(`${API_BASE}/subscriptions/setup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  payment_intent_id: payment_intent_id,
+                  member_id: selectedMember.id,
+                  membership_id: selectedMembership,
+                }),
+              });
+              if (subRes.ok) {
+                successExtra = ' Subscription set up — member will be billed monthly.';
+              }
+            } catch (subErr) {
+              console.warn('Subscription setup failed:', subErr);
+            }
+          }
+
           showStatus('success', 'Payment Successful!',
-            `${paymentDescription} — ${paymentDisplay} charged successfully. Thank you!`);
+            `${paymentDescription} — ${paymentDisplay} charged successfully. Thank you!${successExtra}`);
           payBtn.innerHTML = '✓ Paid';
 
           setTimeout(() => {
@@ -1976,6 +2384,8 @@
             customAmount = null;
             customUnlocked = false;
             cart = {};
+            selectedMember = null;
+            resetMemberSearchUI();
             renderMemberships();
             renderProducts();
             updatePayButton();
@@ -2187,6 +2597,8 @@
       if (tab === 'transactions' && !adminTransactionsLoaded) {
         loadAdminTransactions();
       }
+      if (tab === 'members') loadAdminMembers();
+      if (tab === 'subscriptions') loadAdminSubscriptions();
     });
 
     // -- Admin Products --
@@ -2864,6 +3276,186 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#x27;');
     }
+
+    // ============================================================
+    // ADMIN — MEMBERS
+    // ============================================================
+    let adminMembers = [];
+    let editingMemberId = null;
+
+    async function loadAdminMembers() {
+      document.getElementById('adminMembersTableWrap').innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/members`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        adminMembers = data.members || [];
+        renderAdminMembersTable();
+      } catch (err) {
+        document.getElementById('adminMembersTableWrap').innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed to load members: ${err.message}</div>`;
+      }
+    }
+
+    function renderAdminMembersTable() {
+      const wrap = document.getElementById('adminMembersTableWrap');
+      if (!adminMembers.length) {
+        wrap.innerHTML = '<div class="admin-empty">No members yet.</div>';
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Notes</th><th>Joined</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+              ${adminMembers.map(m => `
+              <tr>
+                <td>${m.id}</td>
+                <td>${escapeHtml(m.name)}</td>
+                <td>${escapeHtml(m.email || '')}</td>
+                <td>${escapeHtml(m.phone || '')}</td>
+                <td>${escapeHtml(m.notes || '')}</td>
+                <td>${new Date(m.created_at).toLocaleDateString('en-GB')}</td>
+                <td>
+                  <button class="btn btn--ghost btn--sm" onclick="editAdminMember(${m.id})">Edit</button>
+                  <button class="btn btn--danger btn--sm" onclick="deleteAdminMember(${m.id}, '${escapeHtml(m.name).replace(/'/g, "\\'")}')">Delete</button>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    document.getElementById('addAdminMemberBtn').addEventListener('click', () => {
+      editingMemberId = null;
+      document.getElementById('adminMemberFormTitle').textContent = 'Add Member';
+      document.getElementById('adminMemberFormName').value = '';
+      document.getElementById('adminMemberFormEmail').value = '';
+      document.getElementById('adminMemberFormPhone').value = '';
+      document.getElementById('adminMemberFormNotes').value = '';
+      document.getElementById('adminMemberFormError').textContent = '';
+      document.getElementById('adminMemberForm').style.display = 'block';
+      document.getElementById('adminMemberFormName').focus();
+    });
+
+    document.getElementById('adminMemberFormCancel').addEventListener('click', () => {
+      document.getElementById('adminMemberForm').style.display = 'none';
+      editingMemberId = null;
+    });
+
+    document.getElementById('adminMemberFormSave').addEventListener('click', async () => {
+      const name = document.getElementById('adminMemberFormName').value.trim();
+      const email = document.getElementById('adminMemberFormEmail').value.trim();
+      const phone = document.getElementById('adminMemberFormPhone').value.trim();
+      const notes = document.getElementById('adminMemberFormNotes').value.trim();
+      const errorEl = document.getElementById('adminMemberFormError');
+      if (!name) { errorEl.textContent = 'Name is required.'; return; }
+      errorEl.textContent = '';
+      try {
+        let res;
+        if (editingMemberId !== null) {
+          res = await adminFetch(`${API_BASE}/admin/members/${editingMemberId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, phone, notes })
+          });
+        } else {
+          res = await fetch(`${API_BASE}/members`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, phone, notes })
+          });
+        }
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || `HTTP ${res.status}`); }
+        document.getElementById('adminMemberForm').style.display = 'none';
+        editingMemberId = null;
+        await loadAdminMembers();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    window.editAdminMember = function(id) {
+      const m = adminMembers.find(x => x.id === id);
+      if (!m) return;
+      editingMemberId = id;
+      document.getElementById('adminMemberFormTitle').textContent = 'Edit Member';
+      document.getElementById('adminMemberFormName').value = m.name;
+      document.getElementById('adminMemberFormEmail').value = m.email || '';
+      document.getElementById('adminMemberFormPhone').value = m.phone || '';
+      document.getElementById('adminMemberFormNotes').value = m.notes || '';
+      document.getElementById('adminMemberFormError').textContent = '';
+      document.getElementById('adminMemberForm').style.display = 'block';
+      document.getElementById('adminMemberFormName').focus();
+    };
+
+    window.deleteAdminMember = async function(id, name) {
+      if (!confirm(`Delete member "${name}"? This cannot be undone.`)) return;
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/members/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await loadAdminMembers();
+      } catch (err) {
+        alert(`Delete failed: ${err.message}`);
+      }
+    };
+
+    // ============================================================
+    // ADMIN — SUBSCRIPTIONS
+    // ============================================================
+    async function loadAdminSubscriptions() {
+      document.getElementById('adminSubscriptionsTableWrap').innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/subscriptions`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderAdminSubscriptionsTable(data.subscriptions || []);
+      } catch (err) {
+        document.getElementById('adminSubscriptionsTableWrap').innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed to load subscriptions: ${err.message}</div>`;
+      }
+    }
+
+    function renderAdminSubscriptionsTable(subs) {
+      const wrap = document.getElementById('adminSubscriptionsTableWrap');
+      if (!subs.length) {
+        wrap.innerHTML = '<div class="admin-empty">No subscriptions yet.</div>';
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th>ID</th><th>Member</th><th>Membership</th><th>Status</th><th>Next Billing</th><th>Stripe Sub ID</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+              ${subs.map(s => `
+              <tr>
+                <td>${s.id}</td>
+                <td>${escapeHtml(s.member_name || s.member_id || '—')}</td>
+                <td>${escapeHtml(s.membership_name || s.membership_id || '—')}</td>
+                <td><span class="stock-badge ${s.status === 'active' ? 'stock-badge--ok' : 'stock-badge--low'}">${escapeHtml(s.status)}</span></td>
+                <td>${s.current_period_end ? new Date(s.current_period_end).toLocaleDateString('en-GB') : '—'}</td>
+                <td style="font-size:11px;">${escapeHtml(s.stripe_subscription_id || '—')}</td>
+                <td>
+                  ${s.status === 'active' ? `<button class="btn btn--danger btn--sm" onclick="cancelAdminSubscription(${s.id})">Cancel</button>` : ''}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    document.getElementById('subRefreshBtn').addEventListener('click', loadAdminSubscriptions);
+
+    window.cancelAdminSubscription = async function(id) {
+      if (!confirm('Cancel this subscription? The customer will not be billed again.')) return;
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/subscriptions/${id}/cancel`, { method: 'POST' });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || `HTTP ${res.status}`); }
+        await loadAdminSubscriptions();
+      } catch (err) {
+        alert(`Cancel failed: ${err.message}`);
+      }
+    };
 
     // ============================================================
     // INIT
