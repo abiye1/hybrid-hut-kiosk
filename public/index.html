@@ -1549,6 +1549,27 @@
       </div>
     </div>
 
+  <!-- Tip Modal -->
+  <div class="modal-overlay modal-overlay--hidden" id="tipModalOverlay">
+    <div class="pin-modal" style="max-width:420px;text-align:center;padding:36px 32px;">
+      <div style="font-size:22px;margin-bottom:4px;">&#128176;</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:6px;">Add a Tip?</div>
+      <div id="tipModalSubtitle" style="font-size:13px;color:var(--muted);margin-bottom:24px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+        <button class="btn btn--ghost" data-tip-pct="10" id="tip10Btn">10%</button>
+        <button class="btn btn--ghost" data-tip-pct="15" id="tip15Btn">15%</button>
+        <button class="btn btn--ghost" data-tip-pct="20" id="tip20Btn">20%</button>
+        <button class="btn btn--ghost" id="tipCustomBtn">Custom</button>
+      </div>
+      <div id="tipCustomRow" style="display:none;margin-bottom:16px;">
+        <input type="number" id="tipCustomInput" placeholder="Enter tip amount £" min="0" step="0.01"
+          style="width:100%;background:var(--charcoal);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;color:var(--white);font-size:15px;text-align:center;box-sizing:border-box;" />
+      </div>
+      <button class="btn btn--primary" id="tipConfirmBtn" style="width:100%;margin-bottom:10px;">Confirm &amp; Pay</button>
+      <button class="btn btn--ghost" id="tipSkipBtn" style="width:100%;">No Tip — Pay Now</button>
+    </div>
+  </div>
+
   <!-- New Member Modal -->
   <div class="modal-overlay modal-overlay--hidden" id="memberNewModalOverlay">
     <div class="pin-modal" style="max-width:440px;text-align:left;padding:32px;">
@@ -1638,6 +1659,7 @@
         <button class="admin-tab-btn" data-admin-tab="members">Members</button>
         <button class="admin-tab-btn" data-admin-tab="subscriptions">Subscriptions</button>
         <button class="admin-tab-btn" data-admin-tab="eod">End of Day</button>
+        <button class="admin-tab-btn" data-admin-tab="cash">Cash</button>
       </div>
 
       <div class="admin-panel__body">
@@ -1820,6 +1842,50 @@
             <!-- Full transaction list -->
             <div id="adminTransactionsTableWrap">
               <div class="admin-empty">Loading...</div>
+            </div>
+            <div style="margin-top:12px;text-align:right;">
+              <button class="btn btn--ghost btn--sm" id="txExportCsvBtn">&#8595; Export CSV</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cash Tracking Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-cash">
+          <div class="admin-section">
+            <div class="admin-section__header">
+              <div class="admin-section__title">Cash Tracking</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="date" id="cashDatePicker" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:var(--white);font-size:13px;" />
+                <button class="btn btn--ghost btn--sm" id="cashFilterBtn">Filter</button>
+                <button class="btn btn--primary btn--sm" id="addCashBtn">+ Log Cash</button>
+              </div>
+            </div>
+            <div id="cashTotalBanner" style="display:none;background:rgba(255,255,255,0.05);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="color:var(--muted);font-size:13px;">Cash total for selected date</span>
+              <span id="cashTotalAmount" style="font-weight:700;font-size:18px;"></span>
+            </div>
+            <div id="cashTableWrap"><div class="admin-empty">Select a date or load all.</div></div>
+            <div class="inline-form" id="cashForm" style="display:none;">
+              <div class="inline-form__title">Log Cash Payment</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Amount (£) <span style="color:var(--coral);">*</span></label>
+                  <input type="number" id="cashFormAmount" placeholder="0.00" min="0.01" step="0.01" />
+                </div>
+                <div class="form-group">
+                  <label>Description</label>
+                  <input type="text" id="cashFormDesc" placeholder="e.g. Day pass, Protein bar" />
+                </div>
+                <div class="form-group">
+                  <label>Note</label>
+                  <input type="text" id="cashFormNote" placeholder="Optional note" />
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn--primary btn--sm" id="cashFormSave">Save</button>
+                <button class="btn btn--ghost btn--sm" id="cashFormCancel">Cancel</button>
+                <span id="cashFormError" style="font-size:11px;color:#F87171;"></span>
+              </div>
             </div>
           </div>
         </div>
@@ -2391,6 +2457,15 @@
 
       if (!paymentAmount || paymentAmount < 1) return;
 
+      // Show tip prompt — resolves with tip amount in pence (0 = no tip)
+      const tipAmount = await promptTip(paymentAmount);
+      if (tipAmount === null) return; // user closed modal
+      const totalAmount = paymentAmount + tipAmount;
+      if (tipAmount > 0) {
+        paymentDescription += ` (incl. ${formatPence(tipAmount)} tip)`;
+        paymentDisplay = formatPence(totalAmount);
+      }
+
       payBtn.classList.add('pay-btn--processing');
       payBtn.innerHTML = `<span class="spinner"></span> Processing...`;
       payBtn.disabled = true;
@@ -2399,7 +2474,7 @@
         showStatus('info', 'Creating Payment', 'Initialising payment with Stripe...');
 
         const intentPayload = {
-          amount: paymentAmount,
+          amount: totalAmount,
           currency: 'gbp',
           description: paymentDescription,
         };
@@ -2689,6 +2764,7 @@
       if (tab === 'members') loadAdminMembers();
       if (tab === 'subscriptions') loadAdminSubscriptions();
       if (tab === 'eod') initEodReport();
+      if (tab === 'cash') initCashTab();
     });
 
     // -- Admin Products --
@@ -3544,6 +3620,213 @@
         await loadAdminSubscriptions();
       } catch (err) {
         alert(`Cancel failed: ${err.message}`);
+      }
+    };
+
+    // ============================================================
+    // TIPPING
+    // ============================================================
+    let tipResolve = null;
+    let selectedTipPct = null;
+
+    function promptTip(baseAmount) {
+      return new Promise((resolve) => {
+        tipResolve = resolve;
+        selectedTipPct = null;
+        document.getElementById('tipCustomRow').style.display = 'none';
+        document.getElementById('tipCustomInput').value = '';
+        document.getElementById('tipModalSubtitle').textContent = `Total: ${formatPence(baseAmount)}`;
+        document.getElementById('tipModalOverlay').dataset.base = baseAmount;
+        // Reset button highlights
+        ['tip10Btn','tip15Btn','tip20Btn','tipCustomBtn'].forEach(id => {
+          document.getElementById(id).classList.remove('btn--primary');
+          document.getElementById(id).classList.add('btn--ghost');
+        });
+        document.getElementById('tipModalOverlay').classList.remove('modal-overlay--hidden');
+        // Update button labels with amounts
+        document.getElementById('tip10Btn').textContent = `10% — ${formatPence(Math.round(baseAmount * 0.1))}`;
+        document.getElementById('tip15Btn').textContent = `15% — ${formatPence(Math.round(baseAmount * 0.15))}`;
+        document.getElementById('tip20Btn').textContent = `20% — ${formatPence(Math.round(baseAmount * 0.2))}`;
+        document.getElementById('tipCustomBtn').textContent = 'Custom Amount';
+      });
+    }
+
+    function closeTipModal(tipAmount) {
+      document.getElementById('tipModalOverlay').classList.add('modal-overlay--hidden');
+      if (tipResolve) { tipResolve(tipAmount); tipResolve = null; }
+    }
+
+    ['tip10Btn','tip15Btn','tip20Btn'].forEach(id => {
+      document.getElementById(id).addEventListener('click', () => {
+        ['tip10Btn','tip15Btn','tip20Btn','tipCustomBtn'].forEach(b => {
+          document.getElementById(b).classList.remove('btn--primary');
+          document.getElementById(b).classList.add('btn--ghost');
+        });
+        document.getElementById(id).classList.add('btn--primary');
+        document.getElementById(id).classList.remove('btn--ghost');
+        selectedTipPct = parseFloat(document.getElementById(id).dataset.tipPct);
+        document.getElementById('tipCustomRow').style.display = 'none';
+      });
+    });
+
+    document.getElementById('tipCustomBtn').addEventListener('click', () => {
+      ['tip10Btn','tip15Btn','tip20Btn','tipCustomBtn'].forEach(b => {
+        document.getElementById(b).classList.remove('btn--primary');
+        document.getElementById(b).classList.add('btn--ghost');
+      });
+      document.getElementById('tipCustomBtn').classList.add('btn--primary');
+      document.getElementById('tipCustomBtn').classList.remove('btn--ghost');
+      selectedTipPct = null;
+      document.getElementById('tipCustomRow').style.display = 'block';
+      document.getElementById('tipCustomInput').focus();
+    });
+
+    document.getElementById('tipConfirmBtn').addEventListener('click', () => {
+      const subtitle = document.getElementById('tipModalSubtitle').textContent;
+      const baseMatch = subtitle.match(/[\d.]+/);
+      // Re-derive base amount from the subtitle display — simpler to read from a stored var
+      // We'll use a data attribute set when opening the modal
+      const baseAmount = parseInt(document.getElementById('tipModalOverlay').dataset.base || '0');
+      let tip = 0;
+      if (selectedTipPct !== null) {
+        tip = Math.round(baseAmount * selectedTipPct / 100);
+      } else {
+        const val = parseFloat(document.getElementById('tipCustomInput').value);
+        tip = isNaN(val) ? 0 : Math.round(val * 100);
+      }
+      closeTipModal(tip);
+    });
+
+    document.getElementById('tipSkipBtn').addEventListener('click', () => closeTipModal(0));
+
+    // ============================================================
+    // CSV EXPORT
+    // ============================================================
+    document.getElementById('txExportCsvBtn').addEventListener('click', async () => {
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/transactions?limit=100`);
+        const data = await res.json();
+        const txs = data.transactions || [];
+        if (!txs.length) { alert('No transactions to export.'); return; }
+        const rows = [['ID','Amount (£)','Currency','Status','Description','Date']];
+        txs.forEach(tx => {
+          rows.push([
+            tx.id,
+            (tx.amount / 100).toFixed(2),
+            tx.currency.toUpperCase(),
+            tx.status,
+            `"${(tx.description || '').replace(/"/g, '""')}"`,
+            tx.created_display || ''
+          ]);
+        });
+        const csv = rows.map(r => r.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hybrid-hut-transactions-${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        alert(`Export failed: ${err.message}`);
+      }
+    });
+
+    // ============================================================
+    // ADMIN — CASH TRACKING
+    // ============================================================
+    function initCashTab() {
+      const picker = document.getElementById('cashDatePicker');
+      if (!picker.value) picker.value = new Date().toISOString().slice(0, 10);
+      loadCashPayments(picker.value);
+    }
+
+    async function loadCashPayments(date) {
+      const wrap = document.getElementById('cashTableWrap');
+      wrap.innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const url = date ? `${API_BASE}/admin/cash?date=${date}` : `${API_BASE}/admin/cash`;
+        const res = await adminFetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const payments = data.cash_payments || [];
+        const total = data.total_pence || 0;
+
+        const banner = document.getElementById('cashTotalBanner');
+        banner.style.display = payments.length ? 'flex' : 'none';
+        document.getElementById('cashTotalAmount').textContent = formatPence(total);
+
+        if (!payments.length) {
+          wrap.innerHTML = '<div class="admin-empty">No cash payments for this date.</div>';
+          return;
+        }
+        wrap.innerHTML = `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Time</th><th>Description</th><th>Note</th><th>Amount</th><th></th></tr></thead>
+              <tbody>
+                ${payments.map(p => `
+                <tr>
+                  <td style="font-size:12px;">${new Date(p.created_at).toLocaleString('en-GB')}</td>
+                  <td>${escapeHtml(p.description || '—')}</td>
+                  <td>${escapeHtml(p.note || '—')}</td>
+                  <td>${formatPence(p.amount_pence)}</td>
+                  <td><button class="btn btn--danger btn--sm" onclick="deleteCashPayment(${p.id})">Delete</button></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } catch (err) {
+        wrap.innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed: ${err.message}</div>`;
+      }
+    }
+
+    document.getElementById('cashFilterBtn').addEventListener('click', () => {
+      loadCashPayments(document.getElementById('cashDatePicker').value);
+    });
+
+    document.getElementById('addCashBtn').addEventListener('click', () => {
+      document.getElementById('cashFormAmount').value = '';
+      document.getElementById('cashFormDesc').value = '';
+      document.getElementById('cashFormNote').value = '';
+      document.getElementById('cashFormError').textContent = '';
+      document.getElementById('cashForm').style.display = 'block';
+      document.getElementById('cashFormAmount').focus();
+    });
+
+    document.getElementById('cashFormCancel').addEventListener('click', () => {
+      document.getElementById('cashForm').style.display = 'none';
+    });
+
+    document.getElementById('cashFormSave').addEventListener('click', async () => {
+      const amtStr = document.getElementById('cashFormAmount').value.trim();
+      const description = document.getElementById('cashFormDesc').value.trim();
+      const note = document.getElementById('cashFormNote').value.trim();
+      const errorEl = document.getElementById('cashFormError');
+      const amt = parseFloat(amtStr);
+      if (isNaN(amt) || amt < 0.01) { errorEl.textContent = 'Enter a valid amount.'; return; }
+      errorEl.textContent = '';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/cash`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount_pence: Math.round(amt * 100), description, note })
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || `HTTP ${res.status}`); }
+        document.getElementById('cashForm').style.display = 'none';
+        loadCashPayments(document.getElementById('cashDatePicker').value);
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    window.deleteCashPayment = async function(id) {
+      if (!confirm('Delete this cash entry?')) return;
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/cash/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        loadCashPayments(document.getElementById('cashDatePicker').value);
+      } catch (err) {
+        alert(`Delete failed: ${err.message}`);
       }
     };
 

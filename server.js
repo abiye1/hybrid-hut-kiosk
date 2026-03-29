@@ -715,6 +715,63 @@ app.post('/api/admin/subscriptions/:id/cancel', requireAdmin, async (req, res) =
 });
 
 // ============================================================
+// CASH PAYMENTS
+// ============================================================
+
+/**
+ * POST /api/admin/cash — log a manual cash payment
+ */
+app.post('/api/admin/cash', requireAdmin, async (req, res) => {
+  try {
+    const { amount_pence, description, note } = req.body;
+    if (!amount_pence || amount_pence < 1) return res.status(400).json({ error: 'amount_pence must be a positive integer' });
+    const { rows } = await pool.query(
+      'INSERT INTO cash_payments (amount_pence, description, note) VALUES ($1, $2, $3) RETURNING *',
+      [amount_pence, description || null, note || null]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Log cash error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/cash — list cash payments, optional ?date=YYYY-MM-DD filter
+ */
+app.get('/api/admin/cash', requireAdmin, async (req, res) => {
+  try {
+    const { date } = req.query;
+    let query = 'SELECT * FROM cash_payments';
+    const params = [];
+    if (date) {
+      query += ' WHERE created_at::date = $1';
+      params.push(date);
+    }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    const { rows } = await pool.query(query, params);
+    const total = rows.reduce((s, r) => s + r.amount_pence, 0);
+    res.json({ cash_payments: rows, total_pence: total });
+  } catch (err) {
+    console.error('Get cash error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/cash/:id — delete a cash entry
+ */
+app.delete('/api/admin/cash/:id', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM cash_payments WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete cash error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
 // HELPERS
 // ============================================================
 
