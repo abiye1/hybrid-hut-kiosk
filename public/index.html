@@ -775,26 +775,130 @@
     }
 
     /* ── Admin Panel ── */
+    /* ── Full-page Admin Panel ── */
     .admin-panel {
-      background: var(--off-black);
-      border: 1px solid var(--charcoal);
-      border-radius: 16px;
-      width: 100%;
-      max-width: 820px;
-      max-height: 90vh;
+      position: fixed;
+      inset: 0;
+      background: #0d0d0d;
       display: flex;
-      flex-direction: column;
-      animation: scaleIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-      overflow: hidden;
+      flex-direction: row;
+      animation: fadeIn 0.2s ease-out;
+      z-index: 201;
     }
 
-    .admin-panel__header {
+    /* Left sidebar */
+    .admin-sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: #111;
+      border-right: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding-bottom: 24px;
+    }
+
+    .admin-sidebar__brand {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 24px 28px;
-      border-bottom: 1px solid var(--charcoal);
+    }
+
+    .admin-sidebar__title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 20px;
+      letter-spacing: 2px;
+      color: var(--white);
+    }
+
+    .admin-panel__close {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
+      color: var(--mid-grey);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
       flex-shrink: 0;
+    }
+
+    .admin-panel__close:hover {
+      border-color: var(--coral);
+      color: var(--coral);
+      background: rgba(255,90,90,0.08);
+    }
+
+    .admin-nav-group {
+      padding: 0 10px;
+      margin-bottom: 6px;
+    }
+
+    .admin-nav-group__label {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.25);
+      padding: 10px 10px 6px;
+      font-weight: 600;
+    }
+
+    .admin-nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 12px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+      margin-bottom: 2px;
+    }
+
+    .admin-nav-btn .nav-icon {
+      font-size: 15px;
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .admin-nav-btn:hover {
+      background: rgba(255,255,255,0.06);
+      color: var(--white);
+    }
+
+    .admin-nav-btn--active {
+      background: rgba(255,90,90,0.12);
+      color: var(--white);
+    }
+
+    .admin-nav-btn--active .nav-icon {
+      color: var(--coral);
+    }
+
+    /* Right content */
+    .admin-panel__body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 36px;
+      background: #0d0d0d;
+    }
+
+    .admin-panel__header {
+      display: none; /* replaced by sidebar brand */
     }
 
     .admin-panel__title {
@@ -802,32 +906,6 @@
       font-size: 26px;
       letter-spacing: 2px;
       color: var(--white);
-    }
-
-    .admin-panel__close {
-      width: 34px;
-      height: 34px;
-      border-radius: 50%;
-      border: 1px solid var(--dark-grey);
-      background: transparent;
-      color: var(--mid-grey);
-      font-size: 18px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s ease;
-    }
-
-    .admin-panel__close:hover {
-      border-color: var(--coral);
-      color: var(--coral);
-    }
-
-    .admin-panel__body {
-      overflow-y: auto;
-      padding: 28px;
-      flex: 1;
     }
 
     .admin-section {
@@ -1063,51 +1141,11 @@
       color: var(--warning);
     }
 
-    /* ── Admin section tabs ── */
-    .admin-tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--charcoal);
-      margin-bottom: 24px;
-      flex-shrink: 0;
-    }
+    /* ── Admin panel visibility ── */
+    .admin-panel--hidden { display: none !important; }
 
-    .admin-tab-btn {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 16px;
-      letter-spacing: 1.5px;
-      padding: 10px 20px;
-      border: none;
-      background: transparent;
-      color: var(--mid-grey);
-      cursor: pointer;
-      position: relative;
-      transition: color 0.2s ease;
-    }
-
-    .admin-tab-btn::after {
-      content: '';
-      position: absolute;
-      bottom: -1px;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: var(--coral);
-      transform: scaleX(0);
-      transition: transform 0.2s ease;
-    }
-
-    .admin-tab-btn:hover {
-      color: var(--white);
-    }
-
-    .admin-tab-btn--active {
-      color: var(--white);
-    }
-
-    .admin-tab-btn--active::after {
-      transform: scaleX(1);
-    }
+    /* ── Admin tab panels (sidebar nav replaces tab bar) ── */
+    .admin-tabs { display: none; }
 
     .admin-tab-panel {
       display: none;
@@ -1512,8 +1550,9 @@
       .header { margin-bottom: 28px; }
       .pay-btn { width: 100%; padding: 18px 24px; }
       .tab-btn { font-size: 15px; padding: 10px 16px; }
-      .admin-panel { max-height: 95vh; border-radius: 12px; }
-      .admin-panel__body { padding: 16px; }
+      .admin-panel__body { padding: 20px; }
+      .admin-sidebar { width: 180px; }
+      .admin-nav-btn { font-size: 12px; padding: 8px 10px; }
       .form-row { grid-template-columns: 1fr; }
       .admin-table { font-size: 12px; }
       .admin-table th, .admin-table td { padding: 8px 6px; }
@@ -1676,32 +1715,69 @@
     </div>
   </div>
 
-  <!-- Admin Panel Overlay -->
-  <div class="modal-overlay modal-overlay--hidden" id="adminOverlay">
-    <div class="admin-panel">
-      <div class="admin-panel__header">
-        <div class="admin-panel__title">Admin Panel</div>
-        <button class="admin-panel__close" id="adminCloseBtn">&#10005;</button>
+  <!-- Admin Panel — full page -->
+  <div class="admin-panel admin-panel--hidden" id="adminOverlay">
+
+    <!-- Left Sidebar -->
+    <div class="admin-sidebar">
+      <div class="admin-sidebar__brand">
+        <div class="admin-sidebar__title">&#9881; Admin</div>
+        <button class="admin-panel__close" id="adminCloseBtn" title="Close">&#10005;</button>
       </div>
 
-      <!-- Low stock alert banner (shown when low-stock products exist) -->
-      <div id="adminLowStockBanner" style="display:none;padding:0 28px 0 28px;flex-shrink:0;margin-top:12px;"></div>
+      <!-- Low stock alert banner -->
+      <div id="adminLowStockBanner" style="display:none;margin:0 10px 8px;"></div>
 
-      <!-- Admin section tab bar -->
-      <div class="admin-tabs" id="adminTabs">
-        <button class="admin-tab-btn admin-tab-btn--active" data-admin-tab="products">Products</button>
-        <button class="admin-tab-btn" data-admin-tab="memberships">Memberships</button>
-        <button class="admin-tab-btn" data-admin-tab="transactions">Transactions</button>
-        <button class="admin-tab-btn" data-admin-tab="members">Members</button>
-        <button class="admin-tab-btn" data-admin-tab="subscriptions">Subscriptions</button>
-        <button class="admin-tab-btn" data-admin-tab="eod">End of Day</button>
-        <button class="admin-tab-btn" data-admin-tab="cash">Cash</button>
-        <button class="admin-tab-btn" data-admin-tab="discounts">Discounts</button>
-        <button class="admin-tab-btn" data-admin-tab="analytics">Analytics</button>
-        <button class="admin-tab-btn" data-admin-tab="vat">VAT Report</button>
+      <!-- Nav groups -->
+      <div class="admin-nav-group">
+        <div class="admin-nav-group__label">Catalogue</div>
+        <button class="admin-nav-btn admin-nav-btn--active" data-admin-tab="products">
+          <span class="nav-icon">&#128722;</span> Products
+        </button>
+        <button class="admin-nav-btn" data-admin-tab="memberships">
+          <span class="nav-icon">&#127947;</span> Memberships
+        </button>
+        <button class="admin-nav-btn" data-admin-tab="discounts">
+          <span class="nav-icon">&#127991;</span> Discounts
+        </button>
       </div>
 
-      <div class="admin-panel__body">
+      <div class="admin-nav-group">
+        <div class="admin-nav-group__label">People</div>
+        <button class="admin-nav-btn" data-admin-tab="members">
+          <span class="nav-icon">&#128101;</span> Members
+        </button>
+        <button class="admin-nav-btn" data-admin-tab="subscriptions">
+          <span class="nav-icon">&#128260;</span> Subscriptions
+        </button>
+      </div>
+
+      <div class="admin-nav-group">
+        <div class="admin-nav-group__label">Finance</div>
+        <button class="admin-nav-btn" data-admin-tab="transactions">
+          <span class="nav-icon">&#128179;</span> Transactions
+        </button>
+        <button class="admin-nav-btn" data-admin-tab="cash">
+          <span class="nav-icon">&#128181;</span> Cash
+        </button>
+        <button class="admin-nav-btn" data-admin-tab="vat">
+          <span class="nav-icon">&#128200;</span> VAT Report
+        </button>
+      </div>
+
+      <div class="admin-nav-group">
+        <div class="admin-nav-group__label">Reports</div>
+        <button class="admin-nav-btn" data-admin-tab="analytics">
+          <span class="nav-icon">&#128202;</span> Analytics
+        </button>
+        <button class="admin-nav-btn" data-admin-tab="eod">
+          <span class="nav-icon">&#128197;</span> End of Day
+        </button>
+      </div>
+    </div>
+
+    <!-- Right content area -->
+    <div class="admin-panel__body">
 
         <!-- Products Section -->
         <div class="admin-tab-panel admin-tab-panel--active" id="adminTabPanel-products">
@@ -2039,6 +2115,7 @@
 
       </div>
     </div>
+
   </div>
 
   <script>
@@ -2903,14 +2980,17 @@
     let activeAdminTab = 'products';
 
     function openAdminPanel() {
-      adminOverlay.classList.remove('modal-overlay--hidden');
+      adminOverlay.classList.remove('admin-panel--hidden');
+      document.body.style.overflow = 'hidden';
+      switchAdminTab('products');
       loadAdminProducts();
       loadAdminMemberships();
       loadAdminLowStockBanner();
     }
 
     function closeAdminPanel() {
-      adminOverlay.classList.add('modal-overlay--hidden');
+      adminOverlay.classList.add('admin-panel--hidden');
+      document.body.style.overflow = '';
       hideProductForm();
       hideMembershipForm();
       editingProductId = null;
@@ -2918,28 +2998,30 @@
     }
 
     document.getElementById('adminCloseBtn').addEventListener('click', closeAdminPanel);
-    adminOverlay.addEventListener('click', (e) => {
-      if (e.target === adminOverlay) closeAdminPanel();
+
+    // Escape key closes admin
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !adminOverlay.classList.contains('admin-panel--hidden')) closeAdminPanel();
     });
 
-    // ── Admin section tab switching ──
-    document.getElementById('adminTabs').addEventListener('click', (e) => {
-      const btn = e.target.closest('.admin-tab-btn');
-      if (!btn) return;
-      const tab = btn.dataset.adminTab;
+    function switchAdminTab(tab) {
       if (tab === activeAdminTab) return;
       activeAdminTab = tab;
 
-      document.querySelectorAll('.admin-tab-btn').forEach(b => {
-        b.classList.toggle('admin-tab-btn--active', b.dataset.adminTab === tab);
+      // Update sidebar nav buttons
+      document.querySelectorAll('.admin-nav-btn').forEach(b => {
+        b.classList.toggle('admin-nav-btn--active', b.dataset.adminTab === tab);
       });
+
+      // Show correct panel
       document.querySelectorAll('.admin-tab-panel').forEach(p => {
         p.classList.toggle('admin-tab-panel--active', p.id === `adminTabPanel-${tab}`);
       });
 
-      if (tab === 'transactions' && !adminTransactionsLoaded) {
-        loadAdminTransactions();
-      }
+      // Scroll content to top
+      document.querySelector('.admin-panel__body').scrollTop = 0;
+
+      if (tab === 'transactions' && !adminTransactionsLoaded) loadAdminTransactions();
       if (tab === 'members') loadAdminMembers();
       if (tab === 'subscriptions') loadAdminSubscriptions();
       if (tab === 'eod') initEodReport();
@@ -2947,6 +3029,13 @@
       if (tab === 'discounts') loadAdminDiscounts();
       if (tab === 'analytics') loadAnalytics();
       if (tab === 'vat') loadVatReport();
+    }
+
+    // ── Sidebar nav click handler ──
+    document.querySelector('.admin-sidebar').addEventListener('click', (e) => {
+      const btn = e.target.closest('.admin-nav-btn');
+      if (!btn) return;
+      switchAdminTab(btn.dataset.adminTab);
     });
 
     // -- Admin Products --
