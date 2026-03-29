@@ -490,6 +490,32 @@
     }
 
     /* ── Pay Button ── */
+    .discount-row {
+      padding: 0 24px 8px;
+      animation: fadeUp 0.4s ease-out both;
+    }
+    .discount-input-wrap {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .discount-input-wrap input {
+      flex: 1;
+      background: var(--charcoal);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--white);
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+    .discount-input-wrap input:focus {
+      outline: none;
+      border-color: var(--coral);
+    }
+    .discount-msg--success { color: #4ADE80; }
+    .discount-msg--error   { color: #F87171; }
+
     .pay-section {
       text-align: center;
       animation: fadeUp 0.5s ease-out 0.4s both;
@@ -1594,6 +1620,16 @@
     </div>
   </div>
 
+    <!-- Discount Code -->
+    <div class="discount-row" id="discountRow" style="display:none;">
+      <div class="discount-input-wrap">
+        <input type="text" id="discountInput" placeholder="Discount code" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase;" />
+        <button class="btn btn--ghost btn--sm" id="discountApplyBtn">Apply</button>
+        <button class="btn btn--ghost btn--sm" id="discountClearBtn" style="display:none;">&#10005;</button>
+      </div>
+      <div id="discountMsg" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
+    </div>
+
     <!-- Pay Section -->
     <div class="pay-section">
       <button class="pay-btn" id="payBtn" disabled>Select a Membership</button>
@@ -1660,6 +1696,8 @@
         <button class="admin-tab-btn" data-admin-tab="subscriptions">Subscriptions</button>
         <button class="admin-tab-btn" data-admin-tab="eod">End of Day</button>
         <button class="admin-tab-btn" data-admin-tab="cash">Cash</button>
+        <button class="admin-tab-btn" data-admin-tab="discounts">Discounts</button>
+        <button class="admin-tab-btn" data-admin-tab="analytics">Analytics</button>
       </div>
 
       <div class="admin-panel__body">
@@ -1887,6 +1925,68 @@
                 <span id="cashFormError" style="font-size:11px;color:#F87171;"></span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Discounts Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-discounts">
+          <div class="admin-section">
+            <div class="admin-section__header">
+              <div class="admin-section__title">Discount Codes</div>
+              <button class="btn btn--primary btn--sm" id="addDiscountBtn">+ New Code</button>
+            </div>
+            <div id="discountsTableWrap"><div class="admin-empty">Loading...</div></div>
+            <div class="inline-form" id="discountForm" style="display:none;">
+              <div class="inline-form__title">New Discount Code</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Code <span style="color:var(--coral);">*</span></label>
+                  <input type="text" id="discountFormCode" placeholder="e.g. SUMMER20" style="text-transform:uppercase;" />
+                </div>
+                <div class="form-group">
+                  <label>Type <span style="color:var(--coral);">*</span></label>
+                  <select id="discountFormType" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:var(--white);font-size:13px;width:100%;">
+                    <option value="percent">Percentage (%)</option>
+                    <option value="fixed">Fixed Amount (£)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label id="discountFormValueLabel">Value (%) <span style="color:var(--coral);">*</span></label>
+                  <input type="number" id="discountFormValue" placeholder="e.g. 20" min="1" />
+                </div>
+                <div class="form-group">
+                  <label>Max Uses (blank = unlimited)</label>
+                  <input type="number" id="discountFormMaxUses" placeholder="e.g. 50" min="1" />
+                </div>
+                <div class="form-group">
+                  <label>Expires</label>
+                  <input type="date" id="discountFormExpires" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:var(--white);font-size:13px;width:100%;box-sizing:border-box;" />
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn--primary btn--sm" id="discountFormSave">Create Code</button>
+                <button class="btn btn--ghost btn--sm" id="discountFormCancel">Cancel</button>
+                <span id="discountFormError" style="font-size:11px;color:#F87171;"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analytics Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-analytics">
+          <div class="admin-section">
+            <div class="admin-section__header">
+              <div class="admin-section__title">Revenue Analytics</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <select id="analyticsDays" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:var(--white);font-size:13px;">
+                  <option value="7">Last 7 days</option>
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+                <button class="btn btn--ghost btn--sm" id="analyticsRefreshBtn">Refresh</button>
+              </div>
+            </div>
+            <div id="analyticsWrap"><div class="admin-empty">Loading...</div></div>
           </div>
         </div>
 
@@ -2316,39 +2416,45 @@
     // PAY BUTTON
     // ============================================================
     function updatePayButton() {
+      let baseAmount = 0;
+      let canPay = false;
+      let label = '';
+
       if (activeTab === 'memberships') {
         if (selectedMembership === 'custom') {
           if (customAmount && customAmount >= 100) {
-            payBtn.disabled = false;
-            payBtn.textContent = `Pay ${formatPence(customAmount)}`;
+            baseAmount = customAmount; canPay = true; label = `Pay ${formatPence(customAmount)}`;
           } else {
-            payBtn.disabled = true;
-            payBtn.textContent = 'Enter an Amount';
+            label = 'Enter an Amount';
           }
         } else if (selectedMembership) {
           const m = membershipsData.find(x => x.id === selectedMembership);
-          if (m) {
-            payBtn.disabled = false;
-            payBtn.textContent = `Pay ${formatPence(m.price_pence)}`;
-          }
+          if (m) { baseAmount = m.price_pence; canPay = true; label = `Pay ${formatPence(m.price_pence)}`; }
         } else {
-          payBtn.disabled = true;
-          payBtn.textContent = 'Select a Membership';
+          label = 'Select a Membership';
         }
       } else {
-        // Products tab
-        const totalPence = Object.entries(cart).reduce((s, [id, q]) => {
+        baseAmount = Object.entries(cart).reduce((s, [id, q]) => {
           const p = productsData.find(x => String(x.id) === String(id));
           return s + (p ? p.price_pence * q : 0);
         }, 0);
-        if (totalPence > 0) {
-          payBtn.disabled = false;
-          payBtn.textContent = `Pay ${formatPence(totalPence)}`;
-        } else {
-          payBtn.disabled = true;
-          payBtn.textContent = 'Add Items to Cart';
-        }
+        if (baseAmount > 0) { canPay = true; label = `Pay ${formatPence(baseAmount)}`; }
+        else { label = 'Add Items to Cart'; }
       }
+
+      // Apply discount if active
+      if (canPay && appliedDiscount) {
+        const final = appliedDiscount.final_pence;
+        label = `Pay ${formatPence(final)} <span style="font-size:14px;opacity:0.7;text-decoration:line-through;">${formatPence(baseAmount)}</span>`;
+        payBtn.innerHTML = label;
+        payBtn.disabled = false;
+      } else {
+        payBtn.textContent = label;
+        payBtn.disabled = !canPay;
+      }
+
+      // Show discount row whenever something is selected
+      if (canPay) showDiscountRow();
     }
 
     // ============================================================
@@ -2458,9 +2564,16 @@
       if (!paymentAmount || paymentAmount < 1) return;
 
       // Show tip prompt — resolves with tip amount in pence (0 = no tip)
-      const tipAmount = await promptTip(paymentAmount);
+      // Apply discount before tip
+      let discountedAmount = paymentAmount;
+      if (appliedDiscount) {
+        discountedAmount = appliedDiscount.final_pence;
+        paymentDescription += ` (${appliedDiscount.type === 'percent' ? appliedDiscount.value + '% off' : formatPence(appliedDiscount.value) + ' off'})`;
+      }
+
+      const tipAmount = await promptTip(discountedAmount);
       if (tipAmount === null) return; // user closed modal
-      const totalAmount = paymentAmount + tipAmount;
+      const totalAmount = discountedAmount + tipAmount;
       if (tipAmount > 0) {
         paymentDescription += ` (incl. ${formatPence(tipAmount)} tip)`;
         paymentDisplay = formatPence(totalAmount);
@@ -2537,6 +2650,14 @@
             }
           }
 
+          // Redeem discount code if applied
+          if (appliedDiscount && appliedDiscount.code_id) {
+            fetch(`${API_BASE}/discount/redeem`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code_id: appliedDiscount.code_id })
+            }).catch(() => {});
+          }
+
           showStatus('success', 'Payment Successful!',
             `${paymentDescription} — ${paymentDisplay} charged successfully. Thank you!${successExtra}`);
           payBtn.innerHTML = '✓ Paid';
@@ -2549,6 +2670,7 @@
             cart = {};
             selectedMember = null;
             resetMemberSearchUI();
+            resetDiscount();
             renderMemberships();
             renderProducts();
             updatePayButton();
@@ -2765,6 +2887,8 @@
       if (tab === 'subscriptions') loadAdminSubscriptions();
       if (tab === 'eod') initEodReport();
       if (tab === 'cash') initCashTab();
+      if (tab === 'discounts') loadAdminDiscounts();
+      if (tab === 'analytics') loadAnalytics();
     });
 
     // -- Admin Products --
@@ -3829,6 +3953,268 @@
         alert(`Delete failed: ${err.message}`);
       }
     };
+
+    // ============================================================
+    // DISCOUNT CODE — KIOSK
+    // ============================================================
+    let appliedDiscount = null; // { discount_pence, final_pence, type, value, code_id, message }
+
+    function showDiscountRow() {
+      document.getElementById('discountRow').style.display = '';
+    }
+
+    function resetDiscount() {
+      appliedDiscount = null;
+      document.getElementById('discountInput').value = '';
+      document.getElementById('discountMsg').textContent = '';
+      document.getElementById('discountMsg').className = '';
+      document.getElementById('discountClearBtn').style.display = 'none';
+      document.getElementById('discountApplyBtn').style.display = '';
+      document.getElementById('discountInput').disabled = false;
+    }
+
+    document.getElementById('discountApplyBtn').addEventListener('click', async () => {
+      const code = document.getElementById('discountInput').value.trim().toUpperCase();
+      const msgEl = document.getElementById('discountMsg');
+      if (!code) { msgEl.textContent = 'Enter a code first.'; msgEl.className = 'discount-msg--error'; return; }
+
+      // Need current payment amount to calculate discount
+      const baseAmt = getCurrentPaymentAmount();
+      if (!baseAmt) { msgEl.textContent = 'Select a product or membership first.'; msgEl.className = 'discount-msg--error'; return; }
+
+      try {
+        const res = await fetch(`${API_BASE}/discount/validate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, amount_pence: baseAmt })
+        });
+        const data = await res.json();
+        if (!data.valid) {
+          msgEl.textContent = data.message || 'Invalid code.';
+          msgEl.className = 'discount-msg--error';
+          appliedDiscount = null;
+        } else {
+          appliedDiscount = data;
+          msgEl.textContent = `✓ ${data.message} — You save ${formatPence(data.discount_pence)}`;
+          msgEl.className = 'discount-msg--success';
+          document.getElementById('discountClearBtn').style.display = '';
+          document.getElementById('discountApplyBtn').style.display = 'none';
+          document.getElementById('discountInput').disabled = true;
+          updatePayButton();
+        }
+      } catch (err) {
+        msgEl.textContent = 'Could not validate code.';
+        msgEl.className = 'discount-msg--error';
+      }
+    });
+
+    document.getElementById('discountInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('discountApplyBtn').click();
+    });
+
+    document.getElementById('discountClearBtn').addEventListener('click', () => {
+      resetDiscount();
+      updatePayButton();
+    });
+
+    function getCurrentPaymentAmount() {
+      if (activeTab === 'memberships') {
+        if (!selectedMembership) return 0;
+        if (selectedMembership === 'custom') return customAmount || 0;
+        const m = membershipsData.find(x => x.id === selectedMembership);
+        return m ? m.price_pence : 0;
+      } else {
+        return Object.entries(cart).reduce((s, [id, qty]) => {
+          const p = productsData.find(x => String(x.id) === String(id));
+          return s + (p ? p.price_pence * qty : 0);
+        }, 0);
+      }
+    }
+
+    // ============================================================
+    // ADMIN — DISCOUNTS
+    // ============================================================
+    let adminDiscounts = [];
+
+    async function loadAdminDiscounts() {
+      document.getElementById('discountsTableWrap').innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/discounts`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        adminDiscounts = data.discounts || [];
+        renderDiscountsTable();
+      } catch (err) {
+        document.getElementById('discountsTableWrap').innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed: ${err.message}</div>`;
+      }
+    }
+
+    function renderDiscountsTable() {
+      const wrap = document.getElementById('discountsTableWrap');
+      if (!adminDiscounts.length) { wrap.innerHTML = '<div class="admin-empty">No discount codes yet.</div>'; return; }
+      wrap.innerHTML = `
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Code</th><th>Type</th><th>Value</th><th>Uses</th><th>Max</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${adminDiscounts.map(d => `
+              <tr>
+                <td style="font-family:monospace;font-weight:700;">${escapeHtml(d.code)}</td>
+                <td>${d.type === 'percent' ? 'Percent' : 'Fixed'}</td>
+                <td>${d.type === 'percent' ? d.value + '%' : formatPence(d.value)}</td>
+                <td style="text-align:center;">${d.uses_count}</td>
+                <td style="text-align:center;">${d.max_uses ?? '∞'}</td>
+                <td style="font-size:12px;">${d.expires_at ? new Date(d.expires_at).toLocaleDateString('en-GB') : '—'}</td>
+                <td><span class="stock-badge ${d.active ? 'stock-badge--ok' : 'stock-badge--low'}">${d.active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                  ${d.active ? `<button class="btn btn--danger btn--sm" onclick="deactivateDiscount(${d.id})">Deactivate</button>` : ''}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    document.getElementById('addDiscountBtn').addEventListener('click', () => {
+      document.getElementById('discountFormCode').value = '';
+      document.getElementById('discountFormType').value = 'percent';
+      document.getElementById('discountFormValue').value = '';
+      document.getElementById('discountFormMaxUses').value = '';
+      document.getElementById('discountFormExpires').value = '';
+      document.getElementById('discountFormError').textContent = '';
+      document.getElementById('discountFormValueLabel').textContent = 'Value (%) *';
+      document.getElementById('discountForm').style.display = 'block';
+      document.getElementById('discountFormCode').focus();
+    });
+
+    document.getElementById('discountFormType').addEventListener('change', function() {
+      document.getElementById('discountFormValueLabel').textContent = this.value === 'percent' ? 'Value (%) *' : 'Value (£) *';
+    });
+
+    document.getElementById('discountFormCancel').addEventListener('click', () => {
+      document.getElementById('discountForm').style.display = 'none';
+    });
+
+    document.getElementById('discountFormSave').addEventListener('click', async () => {
+      const code = document.getElementById('discountFormCode').value.trim().toUpperCase();
+      const type = document.getElementById('discountFormType').value;
+      const valueStr = document.getElementById('discountFormValue').value.trim();
+      const maxUsesStr = document.getElementById('discountFormMaxUses').value.trim();
+      const expires = document.getElementById('discountFormExpires').value;
+      const errorEl = document.getElementById('discountFormError');
+      if (!code) { errorEl.textContent = 'Code is required.'; return; }
+      const rawValue = parseFloat(valueStr);
+      if (isNaN(rawValue) || rawValue <= 0) { errorEl.textContent = 'Enter a valid value.'; return; }
+      const value = type === 'percent' ? Math.round(rawValue) : Math.round(rawValue * 100);
+      errorEl.textContent = '';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/discounts`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, type, value, max_uses: maxUsesStr ? parseInt(maxUsesStr) : null, expires_at: expires || null })
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.error || `HTTP ${res.status}`); }
+        document.getElementById('discountForm').style.display = 'none';
+        await loadAdminDiscounts();
+      } catch (err) { errorEl.textContent = err.message; }
+    });
+
+    window.deactivateDiscount = async function(id) {
+      if (!confirm('Deactivate this code?')) return;
+      try {
+        await adminFetch(`${API_BASE}/admin/discounts/${id}`, { method: 'DELETE' });
+        await loadAdminDiscounts();
+      } catch (err) { alert(`Failed: ${err.message}`); }
+    };
+
+    // ============================================================
+    // ANALYTICS
+    // ============================================================
+    async function loadAnalytics() {
+      const days = document.getElementById('analyticsDays').value;
+      const wrap = document.getElementById('analyticsWrap');
+      wrap.innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/analytics?days=${days}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        renderAnalytics(d);
+      } catch (err) {
+        wrap.innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed: ${err.message}</div>`;
+      }
+    }
+
+    function renderAnalytics(d) {
+      const wrap = document.getElementById('analyticsWrap');
+      const maxProductTotal = d.by_product.length ? d.by_product[0].total_pence : 1;
+      const maxHourCount = Math.max(...d.by_hour.map(h => h.count), 1);
+      const maxDayTotal = d.by_day.length ? Math.max(...d.by_day.map(x => x.total), 1) : 1;
+
+      wrap.innerHTML = `
+        <!-- Summary Cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+          <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Total Revenue</div>
+            <div style="font-size:22px;font-weight:700;color:#4ADE80;">${formatPence(d.total_revenue_pence)}</div>
+            <div style="font-size:11px;color:var(--muted);">last ${d.days} days</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Transactions</div>
+            <div style="font-size:22px;font-weight:700;">${d.transaction_count}</div>
+            <div style="font-size:11px;color:var(--muted);">payments processed</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Avg Transaction</div>
+            <div style="font-size:22px;font-weight:700;">${formatPence(d.avg_transaction_pence)}</div>
+            <div style="font-size:11px;color:var(--muted);">per payment</div>
+          </div>
+        </div>
+
+        <!-- Revenue by Product -->
+        <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:14px;">Revenue by Product / Membership</div>
+          ${d.by_product.length ? d.by_product.slice(0,10).map(p => `
+            <div style="margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${escapeHtml(p.name)}</span>
+                <span style="font-weight:600;">${formatPence(p.total_pence)} <span style="color:var(--muted);font-weight:400;">(${p.count}x)</span></span>
+              </div>
+              <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:6px;overflow:hidden;">
+                <div style="background:var(--coral);height:100%;width:${Math.round(p.total_pence/maxProductTotal*100)}%;border-radius:4px;transition:width 0.6s ease;"></div>
+              </div>
+            </div>`).join('') : '<div style="color:var(--muted);font-size:13px;">No data</div>'}
+        </div>
+
+        <!-- Revenue by Day -->
+        ${d.by_day.length > 1 ? `
+        <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:14px;">Daily Revenue</div>
+          <div style="display:flex;align-items:flex-end;gap:4px;height:80px;overflow-x:auto;">
+            ${d.by_day.map(day => `
+              <div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:24px;" title="${day.date}: ${formatPence(day.total)}">
+                <div style="background:var(--coral);width:100%;border-radius:3px 3px 0 0;height:${Math.round(day.total/maxDayTotal*70)+4}px;opacity:0.85;"></div>
+                <div style="font-size:9px;color:var(--muted);margin-top:3px;writing-mode:vertical-lr;transform:rotate(180deg);">${day.date.slice(0,5)}</div>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        <!-- Hourly Heatmap -->
+        <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:16px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:14px;">Busiest Hours</div>
+          <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;">
+            ${d.by_hour.map(h => {
+              const intensity = maxHourCount ? h.count / maxHourCount : 0;
+              const bg = intensity > 0 ? `rgba(255,90,90,${0.15 + intensity * 0.75})` : 'rgba(255,255,255,0.05)';
+              return `<div title="${h.hour}:00 — ${h.count} transactions" style="background:${bg};border-radius:4px;padding:6px 2px;text-align:center;">
+                <div style="font-size:10px;color:${intensity > 0.5 ? '#fff' : 'var(--muted)'};">${h.hour}</div>
+                ${h.count ? `<div style="font-size:9px;color:${intensity > 0.5 ? 'rgba(255,255,255,0.8)' : 'var(--muted)'};">${h.count}</div>` : ''}
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;">Numbers show transaction count per hour of day (all-time in window)</div>
+        </div>`;
+    }
+
+    document.getElementById('analyticsRefreshBtn').addEventListener('click', loadAnalytics);
+    document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
 
     // ============================================================
     // ADMIN — END OF DAY REPORT

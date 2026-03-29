@@ -39,6 +39,15 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'hybridhut2200',
 });
 
+const rateLimit = require('express-rate-limit');
+
+// General API limiter
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+// Strict limiter for payment endpoints
+const paymentLimiter = rateLimit({ windowMs: 60_000, max: 20, standardHeaders: true, legacyHeaders: false });
+
+app.use('/api/', apiLimiter);
+
 // ============================================================
 // MIDDLEWARE
 // ============================================================
@@ -85,7 +94,7 @@ app.post('/api/connection-token', async (req, res) => {
  * Create a PaymentIntent
  * Called when the user selects a membership and clicks Pay.
  */
-app.post('/api/create-payment-intent', async (req, res) => {
+app.post('/api/create-payment-intent', paymentLimiter, async (req, res) => {
   try {
     const { amount, currency = 'gbp', description } = req.body;
 
@@ -124,7 +133,7 @@ app.post('/api/create-payment-intent', async (req, res) => {
  * tells the reader what to do, rather than the JS SDK.
  * This is the recommended approach for WisePOS E.
  */
-app.post('/api/process-terminal-payment', async (req, res) => {
+app.post('/api/process-terminal-payment', paymentLimiter, async (req, res) => {
   try {
     const { payment_intent_id } = req.body;
     const readerId = process.env.STRIPE_TERMINAL_READER_ID;
@@ -767,6 +776,183 @@ app.delete('/api/admin/cash/:id', requireAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Delete cash error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// DISCOUNT CODES
+// ============================================================
+
+/**
+ * POST /api/discount/validate — validate a discount code (public, used at kiosk)
+ * Body: { code, amount_pence }
+ * Returns: { valid, discount_pence, final_pence, type, value, code_id, message }
+ */
+app.post('/api/discount/validate', async (req, res) => {
+  try {
+    const { code, amount_pence } = req.body;
+    if (!code || !amount_pence) return res.status(400).json({ error: 'code and amount_pence required' });
+    const { rows } = await pool.query(
+      'SELECT * FROM discount_codes WHERE UPPER(code) = UPPER($1) AND active = true',
+      [code.trim()]
+    );
+    if (!rows.length) return res.json({ valid: false, message: 'Invalid or expired discount code' });
+    const dc = rows[0];
+    if (dc.expires_at && new Date(dc.expires_at) < new Date()) {
+      return res.json({ valid: false, message: 'This discount code has expired' });
+    }
+    if (dc.max_uses !== null && dc.uses_count >= dc.max_uses) {
+      return res.json({ valid: false, message: 'This discount code has reached its maximum uses' });
+    }
+    let discount_pence = 0;
+    if (dc.type === 'percent') {
+      discount_pence = Math.round(amount_pence * dc.value / 100);
+    } else {
+      discount_pence = Math.min(dc.value, amount_pence);
+    }
+    const final_pence = Math.max(100, amount_pence - discount_pence); // min £1
+    res.json({ valid: true, discount_pence, final_pence, type: dc.type, value: dc.value, code_id: dc.id, message: `Code applied: ${dc.type === 'percent' ? dc.value + '% off' : '£' + (dc.value/100).toFixed(2) + ' off'}` });
+  } catch (err) {
+    console.error('Discount validate error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/discount/redeem — increment uses_count after successful payment
+ * Body: { code_id }
+ */
+app.post('/api/discount/redeem', async (req, res) => {
+  try {
+    const { code_id } = req.body;
+    if (!code_id) return res.status(400).json({ error: 'code_id required' });
+    await pool.query('UPDATE discount_codes SET uses_count = uses_count + 1 WHERE id = $1', [code_id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Discount redeem error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/discounts — list all discount codes
+ */
+app.get('/api/admin/discounts', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM discount_codes ORDER BY created_at DESC');
+    res.json({ discounts: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/discounts — create a discount code
+ * Body: { code, type, value, max_uses?, expires_at? }
+ */
+app.post('/api/admin/discounts', requireAdmin, async (req, res) => {
+  try {
+    const { code, type, value, max_uses, expires_at } = req.body;
+    if (!code || !type || value == null) return res.status(400).json({ error: 'code, type, value required' });
+    if (!['percent','fixed'].includes(type)) return res.status(400).json({ error: 'type must be percent or fixed' });
+    if (type === 'percent' && (value < 1 || value > 100)) return res.status(400).json({ error: 'percent value must be 1-100' });
+    const { rows } = await pool.query(
+      'INSERT INTO discount_codes (code, type, value, max_uses, expires_at) VALUES (UPPER($1),$2,$3,$4,$5) RETURNING *',
+      [code.trim(), type, value, max_uses || null, expires_at || null]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A code with that name already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/admin/discounts/:id — update a discount code
+ */
+app.put('/api/admin/discounts/:id', requireAdmin, async (req, res) => {
+  try {
+    const { active, max_uses, expires_at } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE discount_codes SET active = COALESCE($1, active), max_uses = COALESCE($2, max_uses), expires_at = COALESCE($3, expires_at) WHERE id = $4 RETURNING *',
+      [active, max_uses, expires_at, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/discounts/:id — deactivate (soft delete)
+ */
+app.delete('/api/admin/discounts/:id', requireAdmin, async (req, res) => {
+  try {
+    await pool.query('UPDATE discount_codes SET active = false WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ANALYTICS
+// ============================================================
+
+/**
+ * GET /api/admin/analytics — summary stats + by-product breakdown from Stripe
+ */
+app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const since = Math.floor(Date.now() / 1000) - (parseInt(days) * 86400);
+
+    // Fetch up to 100 succeeded payment intents
+    const intents = await stripe.paymentIntents.list({ limit: 100, created: { gte: since } });
+    const succeeded = intents.data.filter(pi => pi.status === 'succeeded');
+
+    const totalRevenue = succeeded.reduce((s, pi) => s + pi.amount, 0);
+    const count = succeeded.length;
+    const avgTransaction = count ? Math.round(totalRevenue / count) : 0;
+
+    // By product/description
+    const byProduct = {};
+    succeeded.forEach(pi => {
+      const key = pi.description || 'Unknown';
+      if (!byProduct[key]) byProduct[key] = { count: 0, total: 0 };
+      byProduct[key].count++;
+      byProduct[key].total += pi.amount;
+    });
+    const byProductArr = Object.entries(byProduct)
+      .map(([name, d]) => ({ name, count: d.count, total_pence: d.total }))
+      .sort((a, b) => b.total_pence - a.total_pence);
+
+    // By hour of day
+    const byHour = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0, total: 0 }));
+    succeeded.forEach(pi => {
+      const h = new Date(pi.created * 1000).getHours();
+      byHour[h].count++;
+      byHour[h].total += pi.amount;
+    });
+
+    // By day
+    const byDay = {};
+    succeeded.forEach(pi => {
+      const d = new Date(pi.created * 1000).toLocaleDateString('en-GB');
+      if (!byDay[d]) byDay[d] = { date: d, count: 0, total: 0 };
+      byDay[d].count++;
+      byDay[d].total += pi.amount;
+    });
+    const byDayArr = Object.values(byDay).sort((a, b) => {
+      const parse = s => { const [d,m,y] = s.split('/'); return new Date(y,m-1,d); };
+      return parse(a.date) - parse(b.date);
+    });
+
+    res.json({ total_revenue_pence: totalRevenue, transaction_count: count, avg_transaction_pence: avgTransaction, by_product: byProductArr, by_hour: byHour, by_day: byDayArr, days: parseInt(days) });
+  } catch (err) {
+    console.error('Analytics error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
