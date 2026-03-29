@@ -1547,29 +1547,31 @@
           <button class="member-selected-pill__clear" id="memberClearBtn" title="Clear member">&#10005;</button>
         </div>
       </div>
-      <div class="member-new-form" id="memberNewForm" style="display:none;">
-        <div class="member-new-form__title">New Member</div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Name <span style="color:var(--coral);">*</span></label>
-            <input type="text" id="memberNewName" placeholder="Full name" />
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="memberNewEmail" placeholder="email@example.com" />
-          </div>
-          <div class="form-group">
-            <label>Phone</label>
-            <input type="tel" id="memberNewPhone" placeholder="+44..." />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="btn btn--primary btn--sm" id="memberNewSave">Create &amp; Select</button>
-          <button class="btn btn--ghost btn--sm" id="memberNewCancel">Cancel</button>
-          <span id="memberNewError" style="font-size:11px;color:#F87171;"></span>
-        </div>
-      </div>
     </div>
+
+  <!-- New Member Modal -->
+  <div class="modal-overlay modal-overlay--hidden" id="memberNewModalOverlay">
+    <div class="pin-modal" style="max-width:440px;text-align:left;padding:32px;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:20px;">&#43; New Member</div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;">Name <span style="color:var(--coral);">*</span></label>
+        <input type="text" id="memberNewName" placeholder="Full name" style="width:100%;background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:var(--white);font-size:14px;box-sizing:border-box;" />
+      </div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;">Email</label>
+        <input type="email" id="memberNewEmail" placeholder="email@example.com" style="width:100%;background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:var(--white);font-size:14px;box-sizing:border-box;" />
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px;">Phone</label>
+        <input type="tel" id="memberNewPhone" placeholder="+44..." style="width:100%;background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:var(--white);font-size:14px;box-sizing:border-box;" />
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="btn btn--primary" id="memberNewSave" style="flex:1;">Create &amp; Select</button>
+        <button class="btn btn--ghost" id="memberNewCancel">Cancel</button>
+      </div>
+      <div id="memberNewError" style="font-size:12px;color:#F87171;margin-top:10px;min-height:16px;"></div>
+    </div>
+  </div>
 
     <!-- Pay Section -->
     <div class="pay-section">
@@ -1635,6 +1637,7 @@
         <button class="admin-tab-btn" data-admin-tab="transactions">Transactions</button>
         <button class="admin-tab-btn" data-admin-tab="members">Members</button>
         <button class="admin-tab-btn" data-admin-tab="subscriptions">Subscriptions</button>
+        <button class="admin-tab-btn" data-admin-tab="eod">End of Day</button>
       </div>
 
       <div class="admin-panel__body">
@@ -1779,6 +1782,23 @@
           </div>
         </div>
 
+        <!-- End of Day Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-eod">
+          <div class="admin-section">
+            <div class="admin-section__header">
+              <div class="admin-section__title">End of Day Report</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="date" id="eodDatePicker" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:var(--white);font-size:13px;" />
+                <button class="btn btn--ghost btn--sm" id="eodRefreshBtn">Load</button>
+                <button class="btn btn--primary btn--sm" id="eodPrintBtn">&#128438; Print</button>
+              </div>
+            </div>
+            <div id="eodReportWrap">
+              <div class="admin-empty">Select a date and click Load.</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Transactions Section -->
         <div class="admin-tab-panel" id="adminTabPanel-transactions">
           <div class="admin-section">
@@ -1846,7 +1866,7 @@
       document.getElementById('memberSearchResults').classList.remove('member-search-results--open');
       document.getElementById('memberSelectedPill').style.display = 'none';
       document.getElementById('memberSearchDropdown').style.display = '';
-      document.getElementById('memberNewForm').style.display = 'none';
+      document.getElementById('memberNewModalOverlay').classList.add('modal-overlay--hidden');
     }
 
     function selectMember(member) {
@@ -1854,7 +1874,6 @@
       document.getElementById('memberSelectedName').textContent = member.name + (member.email ? ` (${member.email})` : '');
       document.getElementById('memberSelectedPill').style.display = '';
       document.getElementById('memberSearchDropdown').style.display = 'none';
-      document.getElementById('memberNewForm').style.display = 'none';
       document.getElementById('memberSearchResults').classList.remove('member-search-results--open');
     }
 
@@ -1907,16 +1926,22 @@
     document.getElementById('memberClearBtn').addEventListener('click', resetMemberSearchUI);
 
     document.getElementById('memberNewBtn').addEventListener('click', () => {
-      document.getElementById('memberNewForm').style.display = 'block';
       document.getElementById('memberNewName').value = '';
       document.getElementById('memberNewEmail').value = '';
       document.getElementById('memberNewPhone').value = '';
       document.getElementById('memberNewError').textContent = '';
-      document.getElementById('memberNewName').focus();
+      document.getElementById('memberNewModalOverlay').classList.remove('modal-overlay--hidden');
+      setTimeout(() => document.getElementById('memberNewName').focus(), 50);
     });
 
     document.getElementById('memberNewCancel').addEventListener('click', () => {
-      document.getElementById('memberNewForm').style.display = 'none';
+      document.getElementById('memberNewModalOverlay').classList.add('modal-overlay--hidden');
+    });
+
+    document.getElementById('memberNewModalOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('memberNewModalOverlay')) {
+        document.getElementById('memberNewModalOverlay').classList.add('modal-overlay--hidden');
+      }
     });
 
     document.getElementById('memberNewSave').addEventListener('click', async () => {
@@ -1933,6 +1958,7 @@
         });
         if (!res.ok) { const d = await res.json(); throw new Error(d.error || `HTTP ${res.status}`); }
         const member = await res.json();
+        document.getElementById('memberNewModalOverlay').classList.add('modal-overlay--hidden');
         selectMember(member);
       } catch (err) {
         errorEl.textContent = err.message;
@@ -2104,7 +2130,7 @@
     }
 
     function selectMembership(id) {
-      selectedMembership = id;
+      selectedMembership = (id === 'custom') ? 'custom' : Number(id);
       if (id !== 'custom') {
         customAmount = null;
       }
@@ -2147,6 +2173,17 @@
           </div>
         `;
       }).join('');
+
+      // Tapping the whole card adds one to cart
+      productsGrid.querySelectorAll('.card--product').forEach(card => {
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.qty-btn')) return; // handled below
+          const pid = card.dataset.productId;
+          const product = productsData.find(p => String(p.id) === String(pid));
+          if (product && product.track_inventory && product.inventory === 0) return;
+          adjustCart(pid, 1);
+        });
+      });
 
       // Attach quantity button listeners
       productsGrid.querySelectorAll('.qty-btn--plus').forEach(btn => {
@@ -2251,9 +2288,59 @@
     // ============================================================
     // STATUS
     // ============================================================
-    function showStatus(type, title, message) {
+    function showStatus(type, title, message, retryIntentId, retryDisplay) {
       statusEl.className = `status status--visible status--${type}`;
-      statusEl.innerHTML = `<div class="status__title">${title}</div><div>${message}</div>`;
+      let retryBtn = '';
+      if (retryIntentId) {
+        retryBtn = `<button class="btn btn--primary btn--sm" style="margin-top:10px;" id="retryPayBtn">Tap Again</button>
+                    <button class="btn btn--ghost btn--sm" style="margin-top:10px;" id="retryCancelBtn">Start Over</button>`;
+      }
+      statusEl.innerHTML = `<div class="status__title">${title}</div><div>${message}</div>${retryBtn}`;
+      if (retryIntentId) {
+        document.getElementById('retryPayBtn').addEventListener('click', async () => {
+          statusEl.innerHTML = `<div class="status__title">Retrying...</div><div>Please tap your card again on the reader.</div>`;
+          payBtn.classList.add('pay-btn--processing');
+          payBtn.innerHTML = `<span class="spinner"></span> Processing...`;
+          payBtn.disabled = true;
+          try {
+            const terminalRes = await fetch(`${API_BASE}/process-terminal-payment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ payment_intent_id: retryIntentId }),
+            });
+            const result = await terminalRes.json();
+            if (result.status === 'succeeded') {
+              showStatus('success', 'Payment Successful!', `${retryDisplay} charged successfully. Thank you!`);
+              payBtn.innerHTML = '✓ Paid';
+              setTimeout(() => {
+                selectedMembership = null; customAmount = null; customUnlocked = false;
+                cart = {}; selectedMember = null;
+                resetMemberSearchUI(); renderMemberships(); renderProducts();
+                updatePayButton(); payBtn.classList.remove('pay-btn--processing');
+                clearStatus();
+              }, 5000);
+            } else {
+              const isRetryable2 = result.message && !result.message.includes('busy') && !result.message.includes('offline');
+              showStatus('error', 'Payment Failed', result.message || 'Payment was not completed', isRetryable2 ? retryIntentId : null, retryDisplay);
+              payBtn.innerHTML = `Pay ${retryDisplay}`;
+              payBtn.disabled = false;
+              payBtn.classList.remove('pay-btn--processing');
+            }
+          } catch (retryErr) {
+            showStatus('error', 'Payment Failed', retryErr.message);
+            payBtn.innerHTML = `Pay ${retryDisplay}`;
+            payBtn.disabled = false;
+            payBtn.classList.remove('pay-btn--processing');
+          }
+        });
+        document.getElementById('retryCancelBtn').addEventListener('click', async () => {
+          await fetch(`${API_BASE}/cancel-reader-action`, { method: 'POST' }).catch(() => {});
+          clearStatus();
+          payBtn.innerHTML = `Pay ${retryDisplay}`;
+          payBtn.disabled = false;
+          payBtn.classList.remove('pay-btn--processing');
+        });
+      }
     }
 
     function clearStatus() {
@@ -2268,6 +2355,7 @@
       let paymentAmount = 0;
       let paymentDescription = '';
       let paymentDisplay = '';
+      let payment_intent_id = null;
 
       if (activeTab === 'memberships') {
         if (!selectedMembership) return;
@@ -2328,7 +2416,7 @@
           throw new Error(errData.error || `Failed to create payment intent (${intentRes.status})`);
         }
 
-        const { payment_intent_id } = await intentRes.json();
+        ({ payment_intent_id } = await intentRes.json());
 
         showStatus('info', 'Awaiting Terminal', 'Please complete payment on the card reader...');
 
@@ -2397,7 +2485,8 @@
         }
 
       } catch (err) {
-        showStatus('error', 'Payment Failed', err.message);
+        const isRetryable = err.message && !err.message.includes('busy') && !err.message.includes('offline');
+        showStatus('error', 'Payment Failed', err.message, isRetryable ? payment_intent_id : null, paymentDisplay);
         payBtn.innerHTML = `Pay ${paymentDisplay}`;
         payBtn.disabled = false;
         payBtn.classList.remove('pay-btn--processing');
@@ -2599,6 +2688,7 @@
       }
       if (tab === 'members') loadAdminMembers();
       if (tab === 'subscriptions') loadAdminSubscriptions();
+      if (tab === 'eod') initEodReport();
     });
 
     // -- Admin Products --
@@ -3456,6 +3546,125 @@
         alert(`Cancel failed: ${err.message}`);
       }
     };
+
+    // ============================================================
+    // ADMIN — END OF DAY REPORT
+    // ============================================================
+    function initEodReport() {
+      const picker = document.getElementById('eodDatePicker');
+      if (!picker.value) {
+        const today = new Date();
+        picker.value = today.toISOString().slice(0, 10);
+      }
+      loadEodReport();
+    }
+
+    async function loadEodReport() {
+      const date = document.getElementById('eodDatePicker').value;
+      const wrap = document.getElementById('eodReportWrap');
+      if (!date) { wrap.innerHTML = '<div class="admin-empty">Please select a date.</div>'; return; }
+      wrap.innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const [txRes, dailyRes] = await Promise.all([
+          adminFetch(`${API_BASE}/admin/transactions?limit=100`),
+          adminFetch(`${API_BASE}/admin/transactions/daily`)
+        ]);
+        const txData = await txRes.json();
+        const dailyData = await dailyRes.json();
+
+        // Filter transactions for the selected date (UK format dd/mm/yyyy)
+        const [y, m, d] = date.split('-');
+        const dateStr = `${d}/${m}/${y}`;
+        const dayTx = (txData.transactions || []).filter(tx =>
+          tx.status === 'succeeded' && tx.created_display && tx.created_display.startsWith(dateStr)
+        );
+
+        const dayTotal = dailyData.daily?.find(row => row.date === dateStr);
+        const totalPence = dayTotal ? dayTotal.total_pence : dayTx.reduce((s, tx) => s + tx.amount, 0);
+        const count = dayTotal ? dayTotal.count : dayTx.length;
+
+        if (!dayTx.length) {
+          wrap.innerHTML = `<div class="admin-empty">No transactions found for ${dateStr}.</div>`;
+          return;
+        }
+
+        // Group by description/product
+        const byProduct = {};
+        dayTx.forEach(tx => {
+          const key = tx.description || 'Unknown';
+          if (!byProduct[key]) byProduct[key] = { count: 0, total: 0 };
+          byProduct[key].count++;
+          byProduct[key].total += tx.amount;
+        });
+
+        wrap.innerHTML = `
+          <div id="eodPrintable" style="font-family:monospace;">
+            <div style="text-align:center;padding:16px 0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:16px;">
+              <div style="font-size:18px;font-weight:700;">HYBRID HUT</div>
+              <div style="font-size:13px;color:var(--muted);">End of Day Report — ${dateStr}</div>
+              <div style="font-size:12px;color:var(--muted);">Printed: ${new Date().toLocaleString('en-GB')}</div>
+            </div>
+
+            <table class="admin-table" style="margin-bottom:16px;">
+              <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+              <tbody>
+                ${Object.entries(byProduct).sort((a, b) => b[1].total - a[1].total).map(([name, row]) => `
+                  <tr>
+                    <td>${escapeHtml(name)}</td>
+                    <td style="text-align:center;">${row.count}</td>
+                    <td>${formatPence(row.total)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+
+            <div style="background:rgba(255,255,255,0.05);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-weight:600;">Total Transactions</span>
+              <span style="font-weight:700;font-size:18px;">${count}</span>
+            </div>
+            <div style="background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.2);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-weight:600;">Total Revenue</span>
+              <span style="font-weight:700;font-size:22px;color:#4ADE80;">${formatPence(totalPence)}</span>
+            </div>
+
+            <div style="margin-top:16px;">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">All Transactions</div>
+              <table class="admin-table">
+                <thead><tr><th>Time</th><th>Description</th><th>Amount</th></tr></thead>
+                <tbody>
+                  ${dayTx.map(tx => `
+                    <tr>
+                      <td style="font-size:12px;">${tx.created_display ? tx.created_display.split(', ')[1] || tx.created_display : '—'}</td>
+                      <td>${escapeHtml(tx.description || '—')}</td>
+                      <td>${formatPence(tx.amount)}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+      } catch (err) {
+        wrap.innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    document.getElementById('eodRefreshBtn').addEventListener('click', loadEodReport);
+
+    document.getElementById('eodPrintBtn').addEventListener('click', () => {
+      const content = document.getElementById('eodPrintable');
+      if (!content) return;
+      const win = window.open('', '_blank', 'width=600,height=800');
+      win.document.write(`<!DOCTYPE html><html><head><title>End of Day Report</title>
+        <style>
+          body { font-family: monospace; background: #fff; color: #000; padding: 24px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 13px; }
+          th { background: #f0f0f0; }
+          .total-row { font-size: 16px; font-weight: bold; margin: 12px 0; display: flex; justify-content: space-between; }
+        </style></head><body>
+        ${content.innerHTML.replace(/style="[^"]*color[^"]*"/g, '')}
+        </body></html>`);
+      win.document.close();
+      win.print();
+    });
 
     // ============================================================
     // INIT
