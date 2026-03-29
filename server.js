@@ -39,6 +39,14 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'hybridhut2200',
 });
 
+// Add vat_rate column if it doesn't exist (idempotent migration)
+pool.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS vat_rate NUMERIC(5,2) DEFAULT 0").catch(() => {});
+pool.query("ALTER TABLE memberships ADD COLUMN IF NOT EXISTS vat_rate NUMERIC(5,2) DEFAULT 0").catch(() => {});
+pool.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_price_pence INTEGER DEFAULT NULL").catch(() => {});
+pool.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS promo_ends_at TIMESTAMPTZ DEFAULT NULL").catch(() => {});
+pool.query("ALTER TABLE memberships ADD COLUMN IF NOT EXISTS promo_price_pence INTEGER DEFAULT NULL").catch(() => {});
+pool.query("ALTER TABLE memberships ADD COLUMN IF NOT EXISTS promo_ends_at TIMESTAMPTZ DEFAULT NULL").catch(() => {});
+
 const rateLimit = require('express-rate-limit');
 
 // General API limiter
@@ -229,7 +237,12 @@ app.get('/api/readers', async (req, res) => {
  */
 app.get('/api/products', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM products WHERE active = true ORDER BY name');
+    const { rows } = await pool.query(`SELECT *,
+  CASE WHEN promo_price_pence IS NOT NULL AND (promo_ends_at IS NULL OR promo_ends_at > NOW())
+    THEN promo_price_pence ELSE price_pence END AS effective_price_pence,
+  CASE WHEN promo_price_pence IS NOT NULL AND (promo_ends_at IS NULL OR promo_ends_at > NOW())
+    THEN true ELSE false END AS on_promo
+FROM products WHERE active = true ORDER BY price_pence`);
     res.json({ products: rows });
   } catch (err) {
     console.error('Get products error:', err.message);
@@ -242,7 +255,12 @@ app.get('/api/products', async (req, res) => {
  */
 app.get('/api/memberships', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM memberships WHERE active = true ORDER BY price_pence');
+    const { rows } = await pool.query(`SELECT *,
+  CASE WHEN promo_price_pence IS NOT NULL AND (promo_ends_at IS NULL OR promo_ends_at > NOW())
+    THEN promo_price_pence ELSE price_pence END AS effective_price_pence,
+  CASE WHEN promo_price_pence IS NOT NULL AND (promo_ends_at IS NULL OR promo_ends_at > NOW())
+    THEN true ELSE false END AS on_promo
+FROM memberships WHERE active = true ORDER BY price_pence`);
     res.json({ memberships: rows });
   } catch (err) {
     console.error('Get memberships error:', err.message);
@@ -296,7 +314,7 @@ app.post('/api/admin/products', requireAdmin, async (req, res) => {
  */
 app.put('/api/admin/products/:id', requireAdmin, async (req, res) => {
   try {
-    const { name, price_pence, category, active, inventory, track_inventory, low_stock_threshold } = req.body;
+    const { name, price_pence, category, active, inventory, track_inventory, low_stock_threshold, vat_rate } = req.body;
     const { rows } = await pool.query(
       `UPDATE products SET
         name = COALESCE($1, name),
@@ -306,9 +324,10 @@ app.put('/api/admin/products/:id', requireAdmin, async (req, res) => {
         inventory = COALESCE($5, inventory),
         track_inventory = COALESCE($6, track_inventory),
         low_stock_threshold = COALESCE($7, low_stock_threshold),
+        vat_rate = COALESCE($8, vat_rate),
         updated_at = NOW()
-       WHERE id = $8 RETURNING *`,
-      [name, price_pence, category, active, inventory, track_inventory, low_stock_threshold, req.params.id]
+       WHERE id = $9 RETURNING *`,
+      [name, price_pence, category, active, inventory, track_inventory, low_stock_threshold, vat_rate !== undefined ? vat_rate : null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Product not found' });
     res.json(rows[0]);
@@ -367,10 +386,10 @@ app.post('/api/admin/memberships', requireAdmin, async (req, res) => {
  */
 app.put('/api/admin/memberships/:id', requireAdmin, async (req, res) => {
   try {
-    const { name, price_pence, period, type, active } = req.body;
+    const { name, price_pence, period, type, active, vat_rate } = req.body;
     const { rows } = await pool.query(
-      'UPDATE memberships SET name = COALESCE($1, name), price_pence = COALESCE($2, price_pence), period = COALESCE($3, period), type = COALESCE($4, type), active = COALESCE($5, active), updated_at = NOW() WHERE id = $6 RETURNING *',
-      [name, price_pence, period, type, active, req.params.id]
+      'UPDATE memberships SET name = COALESCE($1, name), price_pence = COALESCE($2, price_pence), period = COALESCE($3, period), type = COALESCE($4, type), active = COALESCE($5, active), vat_rate = COALESCE($6, vat_rate), updated_at = NOW() WHERE id = $7 RETURNING *',
+      [name, price_pence, period, type, active, vat_rate !== undefined ? vat_rate : null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Membership not found' });
     res.json(rows[0]);
@@ -953,6 +972,112 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     res.json({ total_revenue_pence: totalRevenue, transaction_count: count, avg_transaction_pence: avgTransaction, by_product: byProductArr, by_hour: byHour, by_day: byDayArr, days: parseInt(days) });
   } catch (err) {
     console.error('Analytics error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// VAT REPORTING
+// ============================================================
+
+/**
+ * GET /api/admin/vat-report — VAT breakdown from Stripe transactions
+ * Query: ?days=30
+ * Returns transactions split by taxable/non-taxable based on product VAT rate
+ */
+app.get('/api/admin/vat-report', requireAdmin, async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const since = Math.floor(Date.now() / 1000) - (parseInt(days) * 86400);
+
+    // Fetch succeeded payment intents from Stripe
+    const intents = await stripe.paymentIntents.list({ limit: 100, created: { gte: since } });
+    const succeeded = intents.data.filter(pi => pi.status === 'succeeded');
+
+    // Fetch all products and memberships with their vat_rate
+    const { rows: products } = await pool.query('SELECT name, price_pence, vat_rate FROM products WHERE active = true');
+    const { rows: memberships } = await pool.query('SELECT name, price_pence, vat_rate FROM memberships WHERE active = true');
+    const allItems = [...products, ...memberships];
+
+    // Match transactions to items by description
+    let totalGross = 0, totalVat = 0, totalNet = 0;
+    let totalExemptGross = 0;
+    const vatByRate = {}; // { '20': { gross, vat, net, count } }
+
+    succeeded.forEach(pi => {
+      totalGross += pi.amount;
+      // Try to find matching item
+      const match = allItems.find(item => pi.description && pi.description.includes(item.name));
+      const vatRate = match && match.vat_rate ? parseFloat(match.vat_rate) : 0;
+
+      if (vatRate > 0) {
+        const vat = Math.round(pi.amount - pi.amount / (1 + vatRate / 100));
+        const net = pi.amount - vat;
+        totalVat += vat;
+        totalNet += net;
+        const key = String(vatRate);
+        if (!vatByRate[key]) vatByRate[key] = { rate: vatRate, gross: 0, vat: 0, net: 0, count: 0 };
+        vatByRate[key].gross += pi.amount;
+        vatByRate[key].vat += vat;
+        vatByRate[key].net += net;
+        vatByRate[key].count++;
+      } else {
+        totalExemptGross += pi.amount;
+      }
+    });
+
+    res.json({
+      days: parseInt(days),
+      total_gross_pence: totalGross,
+      total_vat_pence: totalVat,
+      total_net_pence: totalNet,
+      total_exempt_pence: totalExemptGross,
+      transaction_count: succeeded.length,
+      by_rate: Object.values(vatByRate),
+    });
+  } catch (err) {
+    console.error('VAT report error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// PROMOTIONAL PRICING
+// ============================================================
+
+/**
+ * PUT /api/admin/products/:id/promo — set or clear a promo price
+ * Body: { promo_price_pence, promo_ends_at } — send null to clear
+ */
+app.put('/api/admin/products/:id/promo', requireAdmin, async (req, res) => {
+  try {
+    const { promo_price_pence, promo_ends_at } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE products SET promo_price_pence = $1, promo_ends_at = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+      [promo_price_pence || null, promo_ends_at || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Set promo error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/admin/memberships/:id/promo — set or clear a promo price
+ */
+app.put('/api/admin/memberships/:id/promo', requireAdmin, async (req, res) => {
+  try {
+    const { promo_price_pence, promo_ends_at } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE memberships SET promo_price_pence = $1, promo_ends_at = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+      [promo_price_pence || null, promo_ends_at || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Set membership promo error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

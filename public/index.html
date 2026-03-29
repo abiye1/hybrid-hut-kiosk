@@ -1698,6 +1698,7 @@
         <button class="admin-tab-btn" data-admin-tab="cash">Cash</button>
         <button class="admin-tab-btn" data-admin-tab="discounts">Discounts</button>
         <button class="admin-tab-btn" data-admin-tab="analytics">Analytics</button>
+        <button class="admin-tab-btn" data-admin-tab="vat">VAT Report</button>
       </div>
 
       <div class="admin-panel__body">
@@ -1722,6 +1723,18 @@
                 <div class="form-group">
                   <label>Price (£)</label>
                   <input type="number" id="productFormPrice" placeholder="2.50" min="0.01" step="0.01" />
+                </div>
+                <div class="form-group">
+                  <label>VAT Rate % <span style="color:var(--muted);font-weight:400;">(0 = exempt)</span></label>
+                  <input type="number" id="productFormVat" placeholder="0" min="0" max="100" step="0.01" value="0" />
+                </div>
+                <div class="form-group">
+                  <label>Promo Price (£) <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+                  <input type="number" id="productFormPromo" placeholder="leave blank" min="0.01" step="0.01" />
+                </div>
+                <div class="form-group">
+                  <label>Promo Ends</label>
+                  <input type="datetime-local" id="productFormPromoEnds" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;color:var(--white);font-size:13px;width:100%;box-sizing:border-box;" />
                 </div>
               </div>
               <div class="form-row" style="align-items:center;">
@@ -1779,6 +1792,18 @@
                     <option value="punchcard">Punchcard</option>
                     <option value="oneoff">One-off</option>
                   </select>
+                </div>
+                <div class="form-group">
+                  <label>VAT Rate % <span style="color:var(--muted);font-weight:400;">(0 = exempt)</span></label>
+                  <input type="number" id="membershipFormVat" placeholder="0" min="0" max="100" step="0.01" value="0" />
+                </div>
+                <div class="form-group">
+                  <label>Promo Price (£) <span style="color:var(--muted);font-weight:400;">(optional)</span></label>
+                  <input type="number" id="membershipFormPromo" placeholder="leave blank" min="0.01" step="0.01" />
+                </div>
+                <div class="form-group">
+                  <label>Promo Ends</label>
+                  <input type="datetime-local" id="membershipFormPromoEnds" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;color:var(--white);font-size:13px;width:100%;box-sizing:border-box;" />
                 </div>
               </div>
               <div class="form-actions">
@@ -1987,6 +2012,28 @@
               </div>
             </div>
             <div id="analyticsWrap"><div class="admin-empty">Loading...</div></div>
+          </div>
+        </div>
+
+        <!-- VAT Report Section -->
+        <div class="admin-tab-panel" id="adminTabPanel-vat">
+          <div class="admin-section">
+            <div class="admin-section__header">
+              <div class="admin-section__title">VAT Report</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <select id="vatDays" style="background:var(--charcoal);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;color:var(--white);font-size:13px;">
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="365">Last 12 months</option>
+                </select>
+                <button class="btn btn--ghost btn--sm" id="vatRefreshBtn">Refresh</button>
+                <button class="btn btn--primary btn--sm" id="vatPrintBtn">&#128438; Print</button>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+              Set VAT rates on individual products and memberships via their Edit form. Items with no VAT rate set are treated as exempt.
+            </div>
+            <div id="vatReportWrap"><div class="admin-empty">Loading...</div></div>
           </div>
         </div>
 
@@ -2199,12 +2246,17 @@
 
       const cards = membershipsData.map((m, i) => {
         const isSelected = selectedMembership === m.id;
-        const display = formatPence(m.price_pence);
+        const effectivePrice = m.effective_price_pence || m.price_pence;
+        const onPromo = m.on_promo === true;
+        const display = onPromo
+          ? `${formatPence(effectivePrice)} <span style="font-size:11px;opacity:0.5;text-decoration:line-through;">${formatPence(m.price_pence)}</span>`
+          : formatPence(effectivePrice);
         const period = m.period || '';
         const typeName = m.type === 'recurring' ? 'Recurring' : m.type === 'punchcard' ? 'Punchcard' : 'One-off';
         return `
           <div class="card ${isSelected ? 'card--selected' : ''}" data-membership-id="${m.id}" style="animation-delay:${(i * 0.07) + 0.05}s">
             <span class="card__badge badge--${m.type}">${typeName}</span>
+            ${onPromo ? '<span class="card__badge" style="background:rgba(251,191,36,0.15);color:#FCD34D;border:1px solid rgba(251,191,36,0.3);margin-left:4px;">SALE</span>' : ''}
             <div class="card__name">${escapeHtml(m.name)}</div>
             <div class="card__price">${display}${period ? ` <span>/ ${escapeHtml(period)}</span>` : ''}</div>
             <div class="card__check">
@@ -2317,7 +2369,11 @@
       productsGrid.innerHTML = productsData.map((p, i) => {
         const qty = cart[p.id] || 0;
         const inCart = qty > 0;
-        const display = formatPence(p.price_pence);
+        const effectivePrice = p.effective_price_pence || p.price_pence;
+        const onPromo = p.on_promo === true;
+        const display = onPromo
+          ? `${formatPence(effectivePrice)} <span style="font-size:11px;opacity:0.5;text-decoration:line-through;">${formatPence(p.price_pence)}</span>`
+          : formatPence(effectivePrice);
         const tracked = p.track_inventory === true;
         const inv = p.inventory != null ? p.inventory : 0;
         const threshold = p.low_stock_threshold != null ? p.low_stock_threshold : 5;
@@ -2326,11 +2382,12 @@
         let stockBadge = '';
         if (isOutOfStock) stockBadge = `<div class="badge--out-of-stock">Out of stock</div>`;
         else if (isLowStock) stockBadge = `<div class="badge--low-stock">Low stock (${inv} left)</div>`;
+        const promoBadge = onPromo ? `<div class="badge--low-stock" style="background:rgba(251,191,36,0.15);color:#FCD34D;border-color:rgba(251,191,36,0.3);">SALE</div>` : '';
         return `
           <div class="card card--product ${inCart ? 'card--in-cart' : ''} ${isOutOfStock ? 'card--out-of-stock' : ''}" data-product-id="${p.id}" style="animation-delay:${(i * 0.07) + 0.05}s">
             <div class="card__name">${escapeHtml(p.name)}</div>
             <div class="card__price">${display}</div>
-            ${stockBadge}
+            ${promoBadge}${stockBadge}
             <div class="qty-controls">
               <button class="qty-btn qty-btn--minus" data-product-id="${p.id}">&#8722;</button>
               <span class="qty-display ${qty === 0 ? 'qty-display--zero' : ''}" id="qty-${p.id}">${qty}</span>
@@ -2429,7 +2486,7 @@
           }
         } else if (selectedMembership) {
           const m = membershipsData.find(x => x.id === selectedMembership);
-          if (m) { baseAmount = m.price_pence; canPay = true; label = `Pay ${formatPence(m.price_pence)}`; }
+          if (m) { baseAmount = m.effective_price_pence || m.price_pence; canPay = true; label = `Pay ${formatPence(baseAmount)}`; }
         } else {
           label = 'Select a Membership';
         }
@@ -2889,6 +2946,7 @@
       if (tab === 'cash') initCashTab();
       if (tab === 'discounts') loadAdminDiscounts();
       if (tab === 'analytics') loadAnalytics();
+      if (tab === 'vat') loadVatReport();
     });
 
     // -- Admin Products --
@@ -3002,7 +3060,13 @@
       const inventory = track_inventory ? (isNaN(inventoryVal) ? 0 : inventoryVal) : undefined;
       const low_stock_threshold = track_inventory ? (isNaN(thresholdVal) ? 5 : thresholdVal) : undefined;
 
-      const payload = { name, price_pence: priceInPence, track_inventory };
+      const vatVal = parseFloat(document.getElementById('productFormVat').value) || 0;
+      const promoStr = document.getElementById('productFormPromo').value.trim();
+      const promoEnds = document.getElementById('productFormPromoEnds').value;
+      const promo_price_pence = promoStr ? Math.round(parseFloat(promoStr) * 100) : null;
+      const promo_ends_at = promoEnds ? new Date(promoEnds).toISOString() : null;
+
+      const payload = { name, price_pence: priceInPence, track_inventory, vat_rate: vatVal, promo_price_pence, promo_ends_at };
       if (track_inventory) {
         payload.inventory = inventory;
         payload.low_stock_threshold = low_stock_threshold;
@@ -3052,6 +3116,9 @@
       document.getElementById('productFormThreshold').value = p.low_stock_threshold != null ? p.low_stock_threshold : 5;
       document.getElementById('productFormStockGroup').style.display = tracked ? '' : 'none';
       document.getElementById('productFormThresholdGroup').style.display = tracked ? '' : 'none';
+      document.getElementById('productFormVat').value = p.vat_rate != null ? p.vat_rate : 0;
+      document.getElementById('productFormPromo').value = p.promo_price_pence ? (p.promo_price_pence / 100).toFixed(2) : '';
+      document.getElementById('productFormPromoEnds').value = p.promo_ends_at ? new Date(p.promo_ends_at).toISOString().slice(0,16) : '';
       document.getElementById('productFormError').textContent = '';
       document.getElementById('productForm').style.display = 'block';
       document.getElementById('productFormName').focus();
@@ -3158,13 +3225,19 @@
       if (isNaN(priceFloat) || priceFloat <= 0) { errorEl.textContent = 'Enter a valid price.'; return; }
       const priceInPence = Math.round(priceFloat * 100);
 
+      const vatVal = parseFloat(document.getElementById('membershipFormVat').value) || 0;
+      const promoStr = document.getElementById('membershipFormPromo').value.trim();
+      const promoEnds = document.getElementById('membershipFormPromoEnds').value;
+      const promo_price_pence = promoStr ? Math.round(parseFloat(promoStr) * 100) : null;
+      const promo_ends_at = promoEnds ? new Date(promoEnds).toISOString() : null;
+
       try {
         let res;
         if (editingMembershipId !== null) {
           res = await adminFetch(`${API_BASE}/admin/memberships/${editingMembershipId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, price_pence: priceInPence, period, type }),
+            body: JSON.stringify({ name, price_pence: priceInPence, period, type, vat_rate: vatVal, promo_price_pence, promo_ends_at }),
           });
         } else {
           res = await adminFetch(`${API_BASE}/admin/memberships`, {
@@ -3198,6 +3271,9 @@
       document.getElementById('membershipFormPrice').value = (m.price_pence / 100).toFixed(2);
       document.getElementById('membershipFormPeriod').value = m.period || '';
       document.getElementById('membershipFormType').value = m.type || 'recurring';
+      document.getElementById('membershipFormVat').value = m.vat_rate != null ? m.vat_rate : 0;
+      document.getElementById('membershipFormPromo').value = m.promo_price_pence ? (m.promo_price_pence / 100).toFixed(2) : '';
+      document.getElementById('membershipFormPromoEnds').value = m.promo_ends_at ? new Date(m.promo_ends_at).toISOString().slice(0,16) : '';
       document.getElementById('membershipFormError').textContent = '';
       document.getElementById('membershipForm').style.display = 'block';
       document.getElementById('membershipFormName').focus();
@@ -4021,7 +4097,7 @@
         if (!selectedMembership) return 0;
         if (selectedMembership === 'custom') return customAmount || 0;
         const m = membershipsData.find(x => x.id === selectedMembership);
-        return m ? m.price_pence : 0;
+        return m ? (m.effective_price_pence || m.price_pence) : 0;
       } else {
         return Object.entries(cart).reduce((s, [id, qty]) => {
           const p = productsData.find(x => String(x.id) === String(id));
@@ -4215,6 +4291,86 @@
 
     document.getElementById('analyticsRefreshBtn').addEventListener('click', loadAnalytics);
     document.getElementById('analyticsDays').addEventListener('change', loadAnalytics);
+
+    // ============================================================
+    // VAT REPORT
+    // ============================================================
+    async function loadVatReport() {
+      const days = document.getElementById('vatDays').value;
+      const wrap = document.getElementById('vatReportWrap');
+      wrap.innerHTML = '<div class="admin-empty">Loading...</div>';
+      try {
+        const res = await adminFetch(`${API_BASE}/admin/vat-report?days=${days}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        renderVatReport(d);
+      } catch (err) {
+        wrap.innerHTML = `<div class="admin-empty" style="color:#F87171;">Failed: ${err.message}</div>`;
+      }
+    }
+
+    function renderVatReport(d) {
+      const wrap = document.getElementById('vatReportWrap');
+      const hasVat = d.total_vat_pence > 0;
+      wrap.innerHTML = `
+        <div id="vatPrintable">
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
+            <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:16px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Gross Revenue</div>
+              <div style="font-size:20px;font-weight:700;">${formatPence(d.total_gross_pence)}</div>
+              <div style="font-size:11px;color:var(--muted);">${d.transaction_count} transactions · last ${d.days} days</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:16px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">VAT Collected</div>
+              <div style="font-size:20px;font-weight:700;color:${hasVat ? '#FCD34D' : 'var(--muted)'};">${formatPence(d.total_vat_pence)}</div>
+              <div style="font-size:11px;color:var(--muted);">Net: ${formatPence(d.total_net_pence)}</div>
+            </div>
+          </div>
+
+          ${d.by_rate.length ? `
+          <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:16px;margin-bottom:16px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:12px;">By VAT Rate</div>
+            <table class="admin-table">
+              <thead><tr><th>Rate</th><th>Gross</th><th>VAT</th><th>Net</th><th>Transactions</th></tr></thead>
+              <tbody>
+                ${d.by_rate.map(r => `<tr>
+                  <td>${r.rate}%</td>
+                  <td>${formatPence(r.gross)}</td>
+                  <td style="color:#FCD34D;">${formatPence(r.vat)}</td>
+                  <td>${formatPence(r.net)}</td>
+                  <td>${r.count}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>` : ''}
+
+          <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:16px;">
+            <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Summary</div>
+            <table class="admin-table">
+              <tbody>
+                <tr><td>Taxable gross</td><td>${formatPence(d.total_gross_pence - d.total_exempt_pence)}</td></tr>
+                <tr><td>VAT on taxable</td><td style="color:#FCD34D;">${formatPence(d.total_vat_pence)}</td></tr>
+                <tr><td>Taxable net (ex-VAT)</td><td>${formatPence(d.total_net_pence)}</td></tr>
+                <tr><td>VAT-exempt revenue</td><td>${formatPence(d.total_exempt_pence)}</td></tr>
+                <tr style="font-weight:700;border-top:1px solid rgba(255,255,255,0.1);"><td>Total gross</td><td>${formatPence(d.total_gross_pence)}</td></tr>
+              </tbody>
+            </table>
+            ${!hasVat ? '<div style="margin-top:12px;font-size:12px;color:var(--muted);">No VAT rates set on any products or memberships. Edit items to assign VAT rates.</div>' : ''}
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('vatRefreshBtn').addEventListener('click', loadVatReport);
+    document.getElementById('vatDays').addEventListener('change', loadVatReport);
+    document.getElementById('vatPrintBtn').addEventListener('click', () => {
+      const content = document.getElementById('vatPrintable');
+      if (!content) return;
+      const win = window.open('', '_blank', 'width=700,height=900');
+      win.document.write(`<!DOCTYPE html><html><head><title>VAT Report</title>
+        <style>body{font-family:sans-serif;padding:24px;color:#000;}table{width:100%;border-collapse:collapse;margin-bottom:16px;}th,td{border:1px solid #ccc;padding:8px 10px;font-size:13px;text-align:left;}th{background:#f0f0f0;}</style>
+        </head><body>${content.innerHTML}</body></html>`);
+      win.document.close(); win.print();
+    });
 
     // ============================================================
     // ADMIN — END OF DAY REPORT
