@@ -3004,7 +3004,7 @@
       if (e.key === 'Escape' && !adminOverlay.classList.contains('admin-panel--hidden')) closeAdminPanel();
     });
 
-    function switchAdminTab(tab) {
+    window.switchAdminTab = function switchAdminTab(tab) {
       if (tab === activeAdminTab) return;
       activeAdminTab = tab;
 
@@ -3710,10 +3710,7 @@
       }
     }
 
-    window.switchAdminTab = function(tab) {
-      const btn = document.querySelector(`.admin-tab-btn[data-admin-tab="${tab}"]`);
-      if (btn) btn.click();
-    };
+    // switchAdminTab is already defined above and exposed globally via `function` declaration
 
     // ============================================================
     // UTILITIES
