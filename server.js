@@ -48,6 +48,15 @@ app.use(cors({
 app.use(express.json());
 
 // ============================================================
+// ADMIN AUTH MIDDLEWARE
+// ============================================================
+function requireAdmin(req, res, next) {
+  const pin = req.headers['x-admin-pin'];
+  if (String(pin) === String(process.env.ADMIN_PIN || '2200')) return next();
+  res.status(401).json({ error: 'Unauthorised' });
+}
+
+// ============================================================
 // ROUTES
 // ============================================================
 
@@ -237,7 +246,7 @@ app.get('/api/memberships', async (req, res) => {
  */
 app.post('/api/admin/verify', (req, res) => {
   const { pin } = req.body;
-  if (String(pin) === '2200') {
+  if (String(pin) === String(process.env.ADMIN_PIN || '2200')) {
     res.json({ success: true });
   } else {
     res.status(401).json({ success: false, error: 'Invalid PIN' });
@@ -247,7 +256,7 @@ app.post('/api/admin/verify', (req, res) => {
 /**
  * GET /api/admin/products — all products including inactive
  */
-app.get('/api/admin/products', async (req, res) => {
+app.get('/api/admin/products', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM products ORDER BY name');
     res.json({ products: rows });
@@ -259,13 +268,13 @@ app.get('/api/admin/products', async (req, res) => {
 /**
  * POST /api/admin/products — create product
  */
-app.post('/api/admin/products', async (req, res) => {
+app.post('/api/admin/products', requireAdmin, async (req, res) => {
   try {
-    const { name, price_pence, category = 'product' } = req.body;
+    const { name, price_pence, category = 'product', inventory = 0, track_inventory = false, low_stock_threshold = 5 } = req.body;
     if (!name || !price_pence) return res.status(400).json({ error: 'name and price_pence required' });
     const { rows } = await pool.query(
-      'INSERT INTO products (name, price_pence, category) VALUES ($1, $2, $3) RETURNING *',
-      [name, price_pence, category]
+      'INSERT INTO products (name, price_pence, category, inventory, track_inventory, low_stock_threshold) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, price_pence, category, inventory, track_inventory, low_stock_threshold]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -276,12 +285,21 @@ app.post('/api/admin/products', async (req, res) => {
 /**
  * PUT /api/admin/products/:id — update product
  */
-app.put('/api/admin/products/:id', async (req, res) => {
+app.put('/api/admin/products/:id', requireAdmin, async (req, res) => {
   try {
-    const { name, price_pence, category, active } = req.body;
+    const { name, price_pence, category, active, inventory, track_inventory, low_stock_threshold } = req.body;
     const { rows } = await pool.query(
-      'UPDATE products SET name = COALESCE($1, name), price_pence = COALESCE($2, price_pence), category = COALESCE($3, category), active = COALESCE($4, active), updated_at = NOW() WHERE id = $5 RETURNING *',
-      [name, price_pence, category, active, req.params.id]
+      `UPDATE products SET
+        name = COALESCE($1, name),
+        price_pence = COALESCE($2, price_pence),
+        category = COALESCE($3, category),
+        active = COALESCE($4, active),
+        inventory = COALESCE($5, inventory),
+        track_inventory = COALESCE($6, track_inventory),
+        low_stock_threshold = COALESCE($7, low_stock_threshold),
+        updated_at = NOW()
+       WHERE id = $8 RETURNING *`,
+      [name, price_pence, category, active, inventory, track_inventory, low_stock_threshold, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Product not found' });
     res.json(rows[0]);
@@ -293,7 +311,7 @@ app.put('/api/admin/products/:id', async (req, res) => {
 /**
  * DELETE /api/admin/products/:id — soft delete
  */
-app.delete('/api/admin/products/:id', async (req, res) => {
+app.delete('/api/admin/products/:id', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'UPDATE products SET active = false, updated_at = NOW() WHERE id = $1 RETURNING *',
@@ -309,7 +327,7 @@ app.delete('/api/admin/products/:id', async (req, res) => {
 /**
  * GET /api/admin/memberships — all memberships
  */
-app.get('/api/admin/memberships', async (req, res) => {
+app.get('/api/admin/memberships', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM memberships ORDER BY price_pence');
     res.json({ memberships: rows });
@@ -321,7 +339,7 @@ app.get('/api/admin/memberships', async (req, res) => {
 /**
  * POST /api/admin/memberships — create membership
  */
-app.post('/api/admin/memberships', async (req, res) => {
+app.post('/api/admin/memberships', requireAdmin, async (req, res) => {
   try {
     const { name, price_pence, period, type = 'recurring' } = req.body;
     if (!name || !price_pence) return res.status(400).json({ error: 'name and price_pence required' });
@@ -338,7 +356,7 @@ app.post('/api/admin/memberships', async (req, res) => {
 /**
  * PUT /api/admin/memberships/:id — update membership
  */
-app.put('/api/admin/memberships/:id', async (req, res) => {
+app.put('/api/admin/memberships/:id', requireAdmin, async (req, res) => {
   try {
     const { name, price_pence, period, type, active } = req.body;
     const { rows } = await pool.query(
@@ -355,7 +373,7 @@ app.put('/api/admin/memberships/:id', async (req, res) => {
 /**
  * DELETE /api/admin/memberships/:id — soft delete
  */
-app.delete('/api/admin/memberships/:id', async (req, res) => {
+app.delete('/api/admin/memberships/:id', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'UPDATE memberships SET active = false, updated_at = NOW() WHERE id = $1 RETURNING *',
@@ -372,7 +390,7 @@ app.delete('/api/admin/memberships/:id', async (req, res) => {
 // ADMIN ROUTES — Transactions
 // ============================================================
 
-app.get('/api/admin/transactions', async (req, res) => {
+app.get('/api/admin/transactions', requireAdmin, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 100);
     const list = await stripe.paymentIntents.list({ limit });
@@ -392,7 +410,7 @@ app.get('/api/admin/transactions', async (req, res) => {
   }
 });
 
-app.get('/api/admin/transactions/daily', async (req, res) => {
+app.get('/api/admin/transactions/daily', requireAdmin, async (req, res) => {
   try {
     const list = await stripe.paymentIntents.list({ limit: 100 });
     const succeeded = list.data.filter(pi => pi.status === 'succeeded');
@@ -411,6 +429,56 @@ app.get('/api/admin/transactions/daily', async (req, res) => {
     res.json({ daily });
   } catch (err) {
     console.error('Daily totals error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/refund', requireAdmin, async (req, res) => {
+  try {
+    const { payment_intent_id, amount } = req.body;
+    if (!payment_intent_id) return res.status(400).json({ error: 'payment_intent_id required' });
+
+    const refundParams = { payment_intent: payment_intent_id };
+    if (amount) refundParams.amount = parseInt(amount);
+
+    const refund = await stripe.refunds.create(refundParams);
+
+    console.log(`✓ Refund created: ${refund.id} — £${((refund.amount) / 100).toFixed(2)} — ${refund.status}`);
+
+    res.json({
+      id: refund.id,
+      amount: refund.amount,
+      status: refund.status,
+      payment_intent: refund.payment_intent,
+    });
+  } catch (err) {
+    console.error('Refund error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/stock/adjust', requireAdmin, async (req, res) => {
+  try {
+    const { product_id, quantity } = req.body;
+    if (!product_id || quantity === undefined) return res.status(400).json({ error: 'product_id and quantity required' });
+    const { rows } = await pool.query(
+      'UPDATE products SET inventory = inventory + $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [parseInt(quantity), product_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Product not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/stock/low', requireAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM products WHERE track_inventory = true AND active = true AND inventory <= low_stock_threshold ORDER BY inventory ASC'
+    );
+    res.json({ products: rows });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
